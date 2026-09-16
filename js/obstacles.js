@@ -4,21 +4,23 @@
 
 const Obstacles = (() => {
   let list = [];
-  let spawnCarry = 0, sceneCarry = 0, lastRingM = 0, t = 0;
+  let spawnCarry = 0, sceneCarry = 0, lastRingM = 0, lastFlightM = 0, t = 0;
 
-  function reset() { list = []; spawnCarry = 0; sceneCarry = 0; lastRingM = 0; t = 0; }
+  function reset() { list = []; spawnCarry = 0; sceneCarry = 0; lastRingM = 0; lastFlightM = 0; t = 0; }
 
   function push(kind, lane) { list.push({ kind, lane, z: CFG.zFar, passed: false, deco: false, seed: Math.random() }); }
 
   function spawnRow(cfg) {
     const lanes = [-1, 0, 1];
     const safe = choice(lanes);
-    let forceRing = false;
-    if (cfg.metres - lastRingM >= CFG.ringEveryM) { forceRing = true; lastRingM = cfg.metres; }
+    let forceRing = false, forceFlight = false;
+    if (cfg.metres - lastFlightM >= CFG.flightEveryM) { forceFlight = true; lastFlightM = cfg.metres; }
+    else if (cfg.metres - lastRingM >= CFG.ringEveryM) { forceRing = true; lastRingM = cfg.metres; }
 
     for (const lane of lanes) {
       if (lane === safe) {
-        if (forceRing) push("ring", lane);
+        if (forceFlight) push("flight", lane);
+        else if (forceRing) push("ring", lane);
         else if (chance(0.5)) push("coin", lane);
         continue;
       }
@@ -58,12 +60,14 @@ const Obstacles = (() => {
   }
 
   function resolve(o) {
-    const laneMatch = Math.abs(Player.laneFloat - o.lane) < 0.55;
-    if (!laneMatch) return;
     const cat = (KIND[o.kind] || {}).cat;
-    if (cat === "coin") { o.gone = true; Game.addCoin(); return; }
-    if (cat === "ring") { o.gone = true; Game.addRing(); return; }
-    if (Player.invincible) return;
+    const laneMatch = Math.abs(Player.laneFloat - o.lane) < 0.55;
+    // collectibles are magneted while flying, otherwise need the same lane
+    if (cat === "coin") { if (Player.flying || laneMatch) { o.gone = true; Game.addCoin(); } return; }
+    if (cat === "ring") { if (Player.flying || laneMatch) { o.gone = true; Game.addRing(); } return; }
+    if (cat === "flight") { if (Player.flying || laneMatch) { o.gone = true; Game.activateFlight(); } return; }
+    if (!laneMatch) return;
+    if (Player.invincible || Player.flying) return; // soaring over all danger
     if (cat === "jump") { if (!Player.airborne) Game.onHit(); return; }
     if (cat === "slide") { if (!Player.sliding) Game.onHit(); return; }
     if (cat === "lane") { Game.onHit(); return; }
@@ -84,6 +88,7 @@ const Obstacles = (() => {
       switch (o.kind) {
         case "coin": drawCoin(ctx, cx, baseY, unit); break;
         case "ring": drawRing(ctx, cx, baseY, unit); break;
+        case "flight": drawFlightOrb(ctx, cx, baseY, unit); break;
         case "log": drawLog(ctx, cx, baseY, unit, w); break;
         case "vine": drawVine(ctx, cx, baseY, unit, w); break;
         case "rock": drawRock(ctx, cx, baseY, unit, w); break;
@@ -136,6 +141,41 @@ const Obstacles = (() => {
     ctx.strokeStyle = bg; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "#ff4d6d";
     ctx.beginPath(); ctx.moveTo(0, -R * 1.35); ctx.lineTo(R * 0.3, -R * 0.95); ctx.lineTo(0, -R * 0.6); ctx.lineTo(-R * 0.3, -R * 0.95); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawFlightOrb(ctx, cx, baseY, unit) {
+    const R = unit * 0.07;
+    const cy = baseY - unit * 0.15 + Math.sin(t * 3 + cx) * unit * 0.015;
+    shadow(ctx, cx, baseY, R * 0.9);
+    ctx.save(); ctx.translate(cx, cy);
+    const glow = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 2.6);
+    glow.addColorStop(0, "rgba(180,235,255,0.85)");
+    glow.addColorStop(0.5, "rgba(120,200,255,0.35)");
+    glow.addColorStop(1, "rgba(120,200,255,0)");
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 0, R * 2.6, 0, Math.PI * 2); ctx.fill();
+    // wings
+    ctx.fillStyle = "rgba(255,246,205,0.92)";
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(dir * R * 0.7, -R * 0.1);
+      ctx.quadraticCurveTo(dir * R * 1.9, -R * 0.7, dir * R * 1.7, R * 0.15);
+      ctx.quadraticCurveTo(dir * R * 1.2, -R * 0.02, dir * R * 0.7, R * 0.22);
+      ctx.closePath(); ctx.fill();
+    }
+    // core
+    const core = ctx.createRadialGradient(-R * 0.3, -R * 0.3, 1, 0, 0, R);
+    core.addColorStop(0, "#ffffff"); core.addColorStop(0.6, "#bfe9ff"); core.addColorStop(1, "#5ab0e0");
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    // swirl
+    ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = R * 0.14; ctx.lineCap = "round";
+    ctx.save(); ctx.rotate(t * 3);
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.55, 0.2, Math.PI * 1.2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.32, Math.PI, Math.PI * 2.1); ctx.stroke();
+    ctx.restore();
+    // up chevron
+    ctx.strokeStyle = "#2b6d8a"; ctx.lineWidth = R * 0.16; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(-R * 0.35, R * 0.15); ctx.lineTo(0, -R * 0.35); ctx.lineTo(R * 0.35, R * 0.15); ctx.stroke();
     ctx.restore();
   }
 

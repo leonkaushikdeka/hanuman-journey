@@ -307,6 +307,50 @@ button:active { transform: scale(.96); }
   100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
 }
 
+/* flight perk meter */
+.flight-meter {
+  position: absolute;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  transform: translate(-50%, 12px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 99px;
+  background: rgba(10,30,50,.6);
+  border: 1px solid rgba(150,220,255,.5);
+  box-shadow: 0 0 20px rgba(90,180,255,.5);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.flight-meter.show { opacity: 1; transform: translate(-50%, 0); }
+.flight-icon { font-size: 18px; animation: spin 1.2s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.flight-bar {
+  width: min(46vw, 200px);
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(0,0,0,.4);
+  overflow: hidden;
+}
+.flight-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #5ab0e0, #bfe9ff, #fff3c0);
+  box-shadow: 0 0 10px rgba(150,220,255,.9);
+  transition: width .12s linear;
+}
+.flight-text {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #cfeeff;
+  font-weight: 800;
+}
+
 /* menu stage chips */
 .stages {
   display: flex;

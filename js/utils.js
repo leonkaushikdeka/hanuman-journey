@@ -26,6 +26,12 @@ const CFG = {
   iFrames: 1.5,            // invincibility seconds after a hit
   graceZ: 9,               // no obstacles for the first N z of a level
   ringEveryM: 220,
+
+  // Divine Flight perk
+  flightDur: 6.5,          // seconds aloft
+  flightAlt: 0.32,         // hover height (fraction of screen height, up)
+  flightSpeedMul: 1.22,    // extra pace while soaring
+  flightEveryM: 360,       // roughly how often a flight orb appears
 };
 
 /* The four legs of Hanuman's journey. Each has its own biome, goal
@@ -61,6 +67,7 @@ const KIND = {
   bat:      { cat: "slide" },  // slide under (flying monster)
   coin:     { cat: "coin" },
   ring:     { cat: "ring" },
+  flight:   { cat: "flight" }, // Divine Flight power-up
 };
 
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }

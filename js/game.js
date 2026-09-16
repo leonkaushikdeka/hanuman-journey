@@ -42,6 +42,8 @@ const Game = (() => {
     vCoins: document.getElementById("v-coins"),
     vBest: document.getElementById("v-best"),
     mute: document.getElementById("btn-mute"),
+    flightMeter: document.getElementById("flight-meter"),
+    flightFill: document.getElementById("flight-fill"),
   };
 
   // ---------- canvas ----------
@@ -156,6 +158,12 @@ const Game = (() => {
   // ---------- scoring / hud ----------
   function addCoin() { coins++; Particles.sparkle(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.1, "rgba(255,220,120,"); Sound.coin(); }
   function addRing() { rings++; Particles.sparkle(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.12, "rgba(255,180,90,"); Sound.ring(); toast(chance(0.5) ? "Jai Shri Ram!" : "Ring!"); }
+  function activateFlight() {
+    Player.startFlight(CFG.flightDur);
+    Player.setInvincible(0);
+    Sound.fly();
+    toast("✨ Divine Flight!");
+  }
 
   function updateHearts() {
     let h = "";
@@ -170,6 +178,16 @@ const Game = (() => {
     el.levelLabel.textContent = `Level ${levelIndex + 1}/4 · ${LEVELS[levelIndex].name}`;
     el.progressFill.style.width = clamp(levelDist / LEVELS[levelIndex].goal, 0, 1) * 100 + "%";
     updateHearts();
+    updateFlightMeter();
+  }
+
+  function updateFlightMeter() {
+    if (Player.flying) {
+      el.flightMeter.classList.add("show");
+      el.flightFill.style.width = clamp(Player.flightRemaining / CFG.flightDur, 0, 1) * 100 + "%";
+    } else {
+      el.flightMeter.classList.remove("show");
+    }
   }
 
   let toastTimer = null;
@@ -197,11 +215,16 @@ const Game = (() => {
     if (state === "playing") {
       const lvl = LEVELS[levelIndex];
       speed = clamp(lvl.speed + levelDist * CFG.levelRamp, lvl.speed, lvl.speed + CFG.maxSpeedBonus);
+      if (Player.flying) speed *= CFG.flightSpeedMul;
       const dz = speed * dt;
       distZ += dz;
       levelDist += dz * CFG.metresPerZ;
       if (graceZ > 0) graceZ -= dz;
       Player.update(dt, speed);
+      if (Player.flying) {
+        const py = World.layout().groundY - CFG.flightAlt * World.layout().h;
+        Particles.flightTrail(World.laneX(Player.laneFloat, 0), py);
+      }
       Obstacles.update(dt, speed, {
         pool: lvl.pool, obstProb: lvl.obstProb, biome: lvl.biome,
         spawn: graceZ <= 0, metres: levelDist,
@@ -294,7 +317,7 @@ const Game = (() => {
     }
   }
 
-  return { init, addCoin, addRing, onHit, get state() { return state; } };
+  return { init, addCoin, addRing, activateFlight, onHit, get state() { return state; } };
 })();
 
 window.Game = Game;

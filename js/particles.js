@@ -69,6 +69,13 @@ const Particles = (() => {
     }
   }
 
+  // streaming wind/energy trail while flying
+  function flightTrail(x, y) {
+    add({ type: "spark", x: x + rand(-8, 8), y: y + rand(-8, 8),
+      vx: rand(120, 220), vy: rand(-20, 20), g: 0, life: 0, max: rand(0.3, 0.6),
+      r: rand(2, 5), col: chance(0.5) ? "rgba(120,220,255," : "rgba(255,225,140," });
+  }
+
   // petals for the victory scene
   function petal(L) {
     add({ type: "petal", x: rand(0, L.w), y: rand(-30, -5),
@@ -110,5 +117,5 @@ const Particles = (() => {
     }
   }
 
-  return { reset, dust, sparkle, burst, ambient, petal, update, draw, count: () => list.length };
+  return { reset, dust, sparkle, burst, ambient, petal, flightTrail, update, draw, count: () => list.length };
 })();

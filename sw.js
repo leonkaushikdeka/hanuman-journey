@@ -1,5 +1,5 @@
 /* Offline-first service worker. Cache-first for app shell. */
-const CACHE = "hanuman-run-v2";
+const CACHE = "hanuman-run-v3";
 const ASSETS = [
   "./",
   "./index.html",
