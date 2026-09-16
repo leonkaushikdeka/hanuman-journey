@@ -1,30 +1,20 @@
-/* Obstacles, collectibles and side scenery.
-   Handles spawning, movement, drawing (far->near) and collision judging. */
+/* Obstacles, monsters, collectibles and per-biome scenery.
+   Spawns from the current level's pool, moves everything toward the
+   camera, draws far->near, and judges collisions by KIND category. */
 
 const Obstacles = (() => {
   let list = [];
-  let spawnCarry = 0;
-  let sceneCarry = 0;
-  let lastRingM = 0;
-  let t = 0;
+  let spawnCarry = 0, sceneCarry = 0, lastRingM = 0, t = 0;
 
-  const FULL = { rock: true, demon: true };     // must change lane
-  const LOW = { log: true };                     // must jump
-  const OVER = { arch: true };                    // must slide
-  const PICK = { coin: true, ring: true };        // collectibles
+  function reset() { list = []; spawnCarry = 0; sceneCarry = 0; lastRingM = 0; t = 0; }
 
-  function reset() {
-    list = []; spawnCarry = 0; sceneCarry = 0; lastRingM = 0; t = 0;
-  }
+  function push(kind, lane) { list.push({ kind, lane, z: CFG.zFar, passed: false, deco: false, seed: Math.random() }); }
 
-  function spawnRow(metres) {
+  function spawnRow(cfg) {
     const lanes = [-1, 0, 1];
     const safe = choice(lanes);
     let forceRing = false;
-    if (metres - lastRingM >= CFG.ringEveryM) { forceRing = true; lastRingM = metres; }
-
-    const obstProb = clamp(0.34 + metres * 0.00016, 0.34, 0.8);
-    const types = metres > 320 ? ["log", "arch", "rock", "demon"] : ["log", "arch", "rock"];
+    if (cfg.metres - lastRingM >= CFG.ringEveryM) { forceRing = true; lastRingM = cfg.metres; }
 
     for (const lane of lanes) {
       if (lane === safe) {
@@ -33,90 +23,80 @@ const Obstacles = (() => {
         continue;
       }
       const r = Math.random();
-      if (r < obstProb) push(choice(types), lane);
-      else if (r < obstProb + 0.24) push("coin", lane);
+      if (r < cfg.obstProb) push(choice(cfg.pool), lane);
+      else if (r < cfg.obstProb + 0.24) push("coin", lane);
     }
   }
 
-  function spawnScenery(metres) {
-    const { a } = World.biomeAt(metres);
+  function spawnScenery(biome) {
     const side = choice([-2.3, -3.1, 2.3, 3.1]);
     let kind = "tree";
-    if (a.name === "sea" || a.name === "coast") kind = choice(["pillar", "tree", "rockdeco"]);
-    else if (a.name === "lanka") kind = choice(["pillar", "pillar", "rockdeco"]);
-    else kind = choice(["tree", "tree", "rockdeco"]);
+    if (biome === "jungle") kind = choice(["tree", "tree", "bush", "rockdeco"]);
+    else if (biome === "coast") kind = choice(["palm", "rockdeco", "bush"]);
+    else if (biome === "sea") kind = choice(["postbig", "rockdeco", "postbig"]);
+    else kind = choice(["pillar", "torch", "rockdeco"]);
     list.push({ kind, lane: side, z: CFG.zFar, deco: true, passed: true, seed: Math.random() });
   }
 
-  function push(kind, lane) {
-    list.push({ kind, lane, z: CFG.zFar, passed: false, deco: false, seed: Math.random() });
-  }
-
-  function update(dt, speed, metres) {
+  function update(dt, speed, cfg) {
     t += dt;
     const dz = speed * dt;
-
-    // move + resolve
     for (const o of list) {
       o.z -= dz;
-      if (!o.deco && !o.passed && o.z <= CFG.zResolve) {
-        o.passed = true;
-        resolve(o);
-      }
+      if (!o.deco && !o.passed && o.z <= CFG.zResolve) { o.passed = true; resolve(o); }
     }
-    // cull
-    list = list.filter((o) => o.z > CFG.zGone);
+    list = list.filter((o) => o.z > CFG.zGone && !o.gone);
 
-    // spawn obstacle rows at fixed z spacing
-    spawnCarry += dz;
-    while (spawnCarry >= CFG.spawnGapZ) {
-      spawnCarry -= CFG.spawnGapZ;
-      spawnRow(metres);
+    if (cfg.spawn) {
+      spawnCarry += dz;
+      while (spawnCarry >= CFG.spawnGapZ) { spawnCarry -= CFG.spawnGapZ; spawnRow(cfg); }
+    } else {
+      spawnCarry = 0;
     }
-    // spawn scenery more densely
     sceneCarry += dz;
-    while (sceneCarry >= 2.1) {
-      sceneCarry -= 2.1;
-      if (chance(0.9)) spawnScenery(metres);
-    }
+    while (sceneCarry >= 2.1) { sceneCarry -= 2.1; if (chance(0.9)) spawnScenery(cfg.biome); }
   }
 
   function resolve(o) {
     const laneMatch = Math.abs(Player.laneFloat - o.lane) < 0.55;
     if (!laneMatch) return;
-
-    if (o.kind === "coin") { o.gone = true; Game.addCoin(); return; }
-    if (o.kind === "ring") { o.gone = true; Game.addRing(); return; }
-    if (LOW[o.kind]) { if (!Player.airborne) Game.onHit(); return; }
-    if (OVER[o.kind]) { if (!Player.sliding) Game.onHit(); return; }
-    if (FULL[o.kind]) { Game.onHit(); return; }
+    const cat = (KIND[o.kind] || {}).cat;
+    if (cat === "coin") { o.gone = true; Game.addCoin(); return; }
+    if (cat === "ring") { o.gone = true; Game.addRing(); return; }
+    if (Player.invincible) return;
+    if (cat === "jump") { if (!Player.airborne) Game.onHit(); return; }
+    if (cat === "slide") { if (!Player.sliding) Game.onHit(); return; }
+    if (cat === "lane") { Game.onHit(); return; }
   }
 
-  // ---------- drawing ----------
+  // ---------------- drawing ----------------
   function draw(ctx) {
     const L = World.layout();
-    // far -> near
     const drawList = list.slice().sort((a, b) => b.z - a.z);
     for (const o of drawList) {
-      if (o.gone) continue;
-      const z = o.z;
-      const sc = World.scaleAtZ(z);
-      const cx = World.laneX(o.lane, z);
-      const baseY = World.projY(z);
+      const sc = World.scaleAtZ(o.z);
+      const cx = World.laneX(o.lane, o.z);
+      const baseY = World.projY(o.z);
       const unit = L.h * sc;
       const w = L.spread * sc * 0.82;
-      const fade = clamp((z - CFG.zGone) / 2, 0, 1);
       ctx.save();
-      ctx.globalAlpha = fade;
+      ctx.globalAlpha = clamp((o.z - CFG.zGone) / 2, 0, 1);
       switch (o.kind) {
         case "coin": drawCoin(ctx, cx, baseY, unit); break;
         case "ring": drawRing(ctx, cx, baseY, unit); break;
         case "log": drawLog(ctx, cx, baseY, unit, w); break;
-        case "arch": drawArch(ctx, cx, baseY, unit, w); break;
+        case "vine": drawVine(ctx, cx, baseY, unit, w); break;
         case "rock": drawRock(ctx, cx, baseY, unit, w); break;
+        case "snake": drawSnake(ctx, cx, baseY, unit, w); break;
+        case "bat": drawBat(ctx, cx, baseY, unit, w); break;
+        case "rakshasa": drawRakshasa(ctx, cx, baseY, unit, w); break;
         case "demon": drawDemon(ctx, cx, baseY, unit, w); break;
         case "tree": drawTree(ctx, cx, baseY, unit, o.seed); break;
+        case "bush": drawBush(ctx, cx, baseY, unit, o.seed); break;
+        case "palm": drawPalm(ctx, cx, baseY, unit, o.seed); break;
         case "pillar": drawPillar(ctx, cx, baseY, unit); break;
+        case "postbig": drawPost(ctx, cx, baseY, unit); break;
+        case "torch": drawTorch(ctx, cx, baseY, unit); break;
         case "rockdeco": drawRock(ctx, cx, baseY, unit, unit * 0.5); break;
       }
       ctx.restore();
@@ -124,100 +104,66 @@ const Obstacles = (() => {
   }
 
   function shadow(ctx, cx, baseY, r) {
-    ctx.save();
-    ctx.globalAlpha *= 0.3;
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.ellipse(cx, baseY, r, r * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= 0.3; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(cx, baseY, r, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
   }
 
+  // ---- collectibles ----
   function drawCoin(ctx, cx, baseY, unit) {
-    const r = unit * 0.05;
-    const cy = baseY - unit * 0.1 + Math.sin(t * 4) * unit * 0.01;
+    const r = unit * 0.05, cy = baseY - unit * 0.1 + Math.sin(t * 4 + cx) * unit * 0.01;
     const sx = Math.abs(Math.cos(t * 3.5 + cx));
     shadow(ctx, cx, baseY, r * 0.9);
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(sx * 0.7 + 0.3, 1);
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(sx * 0.7 + 0.3, 1);
     const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
     g.addColorStop(0, "#fff3b0"); g.addColorStop(1, "#e0a020");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#b9860b"; ctx.lineWidth = r * 0.14; ctx.stroke();
-    ctx.fillStyle = "#b9860b";
-    ctx.font = `bold ${r * 1.1}px serif`;
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("ॐ", 0, r * 0.08);
+    ctx.fillStyle = "#b9860b"; ctx.font = `bold ${r * 1.1}px serif`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("ॐ", 0, r * 0.08);
     ctx.restore();
   }
 
   function drawRing(ctx, cx, baseY, unit) {
-    const R = unit * 0.062;
-    const cy = baseY - unit * 0.14 + Math.sin(t * 3) * unit * 0.012;
+    const R = unit * 0.062, cy = baseY - unit * 0.14 + Math.sin(t * 3 + cx) * unit * 0.012;
     shadow(ctx, cx, baseY, R);
-    // glow
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(t * 1.4);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * 1.4);
     const glow = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 2.4);
-    glow.addColorStop(0, "rgba(255,230,150,0.55)");
-    glow.addColorStop(1, "rgba(255,210,90,0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(0, 0, R * 2.4, 0, Math.PI * 2); ctx.fill();
-    // band
+    glow.addColorStop(0, "rgba(255,230,150,0.55)"); glow.addColorStop(1, "rgba(255,210,90,0)");
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, 0, R * 2.4, 0, Math.PI * 2); ctx.fill();
     ctx.lineWidth = R * 0.42;
     const bg = ctx.createLinearGradient(-R, -R, R, R);
     bg.addColorStop(0, "#fff3b0"); bg.addColorStop(0.5, "#f2c744"); bg.addColorStop(1, "#c98a10");
-    ctx.strokeStyle = bg;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
-    // gem
+    ctx.strokeStyle = bg; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "#ff4d6d";
-    ctx.beginPath();
-    ctx.moveTo(0, -R * 1.35); ctx.lineTo(R * 0.3, -R * 0.95);
-    ctx.lineTo(0, -R * 0.6); ctx.lineTo(-R * 0.3, -R * 0.95);
-    ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -R * 1.35); ctx.lineTo(R * 0.3, -R * 0.95); ctx.lineTo(0, -R * 0.6); ctx.lineTo(-R * 0.3, -R * 0.95); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
 
+  // ---- obstacles ----
   function drawLog(ctx, cx, baseY, unit, w) {
-    const h = unit * 0.055;
-    const y = baseY - h;
+    const h = unit * 0.055, y = baseY - h;
     shadow(ctx, cx, baseY, w * 0.55);
     const g = ctx.createLinearGradient(0, y, 0, y + h);
     g.addColorStop(0, "#9a6a3a"); g.addColorStop(1, "#5c3d1e");
-    ctx.fillStyle = g;
-    rrect(ctx, cx - w * 0.5, y, w, h, h * 0.5); ctx.fill();
-    // end grain
-    ctx.fillStyle = "#c79a5a";
-    ctx.beginPath(); ctx.ellipse(cx - w * 0.5, y + h * 0.5, h * 0.28, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#8a5a2a";
-    ctx.beginPath(); ctx.ellipse(cx - w * 0.5, y + h * 0.5, h * 0.14, h * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = g; rrect(ctx, cx - w * 0.5, y, w, h, h * 0.5); ctx.fill();
+    ctx.fillStyle = "#c79a5a"; ctx.beginPath(); ctx.ellipse(cx - w * 0.5, y + h * 0.5, h * 0.28, h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#8a5a2a"; ctx.beginPath(); ctx.ellipse(cx - w * 0.5, y + h * 0.5, h * 0.14, h * 0.28, 0, 0, Math.PI * 2); ctx.fill();
   }
 
-  function drawArch(ctx, cx, baseY, unit, w) {
-    const postH = unit * 0.2;
-    const beamY = baseY - postH;
-    const pw = w * 0.16;
-    shadow(ctx, cx, baseY, w * 0.55);
-    const g = ctx.createLinearGradient(0, beamY, 0, baseY);
-    g.addColorStop(0, "#d14a2a"); g.addColorStop(1, "#8a2a12");
-    ctx.fillStyle = g;
-    // posts
-    ctx.fillRect(cx - w * 0.55, beamY, pw, postH);
-    ctx.fillRect(cx + w * 0.55 - pw, beamY, pw, postH);
-    // decorative top beam (torana)
-    rrect(ctx, cx - w * 0.62, beamY - unit * 0.05, w * 1.24, unit * 0.06, unit * 0.02); ctx.fill();
-    ctx.fillStyle = "#ffd15c";
-    rrect(ctx, cx - w * 0.62, beamY - unit * 0.012, w * 1.24, unit * 0.014, unit * 0.006); ctx.fill();
-    // small finials
-    ctx.fillStyle = "#8a2a12";
-    ctx.beginPath();
-    ctx.moveTo(cx, beamY - unit * 0.05);
-    ctx.lineTo(cx - unit * 0.02, beamY - unit * 0.085);
-    ctx.lineTo(cx + unit * 0.02, beamY - unit * 0.085);
-    ctx.closePath(); ctx.fill();
+  function drawVine(ctx, cx, baseY, unit, w) {
+    // overhead branch with hanging tendrils -> slide under
+    const beamY = baseY - unit * 0.2;
+    shadow(ctx, cx, baseY, w * 0.5);
+    ctx.strokeStyle = "#5c3d1e"; ctx.lineWidth = unit * 0.02; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx - w * 0.62, beamY - unit * 0.01); ctx.quadraticCurveTo(cx, beamY - unit * 0.03, cx + w * 0.62, beamY); ctx.stroke();
+    ctx.strokeStyle = "#3f8f3a"; ctx.lineWidth = unit * 0.008;
+    ctx.fillStyle = "#4faa46";
+    for (let i = -3; i <= 3; i++) {
+      const hx = cx + i * w * 0.16;
+      const hang = unit * (0.06 + 0.03 * ((i + 3) % 3)) + Math.sin(t * 2 + i) * unit * 0.01;
+      ctx.beginPath(); ctx.moveTo(hx, beamY); ctx.lineTo(hx, beamY + hang); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(hx, beamY + hang, unit * 0.02, unit * 0.035, 0.4, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawRock(ctx, cx, baseY, unit, w) {
@@ -236,53 +182,193 @@ const Obstacles = (() => {
     ctx.beginPath(); ctx.ellipse(cx - w * 0.1, baseY - h * 0.7, w * 0.14, h * 0.18, -0.4, 0, Math.PI * 2); ctx.fill();
   }
 
-  function drawDemon(ctx, cx, baseY, unit, w) {
-    const h = unit * 0.22;
-    const top = baseY - h;
-    shadow(ctx, cx, baseY, w * 0.55);
-    // body
-    const g = ctx.createLinearGradient(0, top, 0, baseY);
-    g.addColorStop(0, "#3a2140"); g.addColorStop(1, "#1c0f22");
-    ctx.fillStyle = g;
-    rrect(ctx, cx - w * 0.32, top + h * 0.28, w * 0.64, h * 0.72, w * 0.1); ctx.fill();
-    // head
-    ctx.beginPath(); ctx.arc(cx, top + h * 0.24, h * 0.22, 0, Math.PI * 2); ctx.fill();
-    // horns
-    ctx.strokeStyle = "#20111a"; ctx.lineWidth = w * 0.07; ctx.lineCap = "round";
+  // ---- monsters ----
+  function drawSnake(ctx, cx, baseY, unit, w) {
+    shadow(ctx, cx, baseY, w * 0.5);
+    const wig = Math.sin(t * 6 + cx) * unit * 0.02;
+    ctx.strokeStyle = "#3f9a4a"; ctx.lineWidth = unit * 0.05; ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(cx - h * 0.12, top + h * 0.1); ctx.lineTo(cx - h * 0.26, top - h * 0.06);
-    ctx.moveTo(cx + h * 0.12, top + h * 0.1); ctx.lineTo(cx + h * 0.26, top - h * 0.06);
+    ctx.moveTo(cx - w * 0.4, baseY);
+    ctx.quadraticCurveTo(cx - w * 0.1 + wig, baseY - unit * 0.05, cx + w * 0.1 - wig, baseY - unit * 0.02);
+    ctx.quadraticCurveTo(cx + w * 0.3 + wig, baseY, cx + w * 0.2, baseY - unit * 0.08);
     ctx.stroke();
-    // eyes
-    ctx.fillStyle = "#ff3b30";
-    ctx.beginPath(); ctx.arc(cx - h * 0.08, top + h * 0.24, h * 0.045, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + h * 0.08, top + h * 0.24, h * 0.045, 0, Math.PI * 2); ctx.fill();
-    // mouth
-    ctx.strokeStyle = "#ff3b30"; ctx.lineWidth = w * 0.03;
-    ctx.beginPath(); ctx.arc(cx, top + h * 0.33, h * 0.07, 0.1 * Math.PI, 0.9 * Math.PI); ctx.stroke();
+    // pattern
+    ctx.strokeStyle = "#2b6d34"; ctx.lineWidth = unit * 0.012;
+    ctx.beginPath(); ctx.moveTo(cx - w * 0.3, baseY - unit * 0.01); ctx.lineTo(cx - w * 0.1, baseY - unit * 0.03); ctx.stroke();
+    // raised head
+    const hx = cx + w * 0.2, hy = baseY - unit * 0.1;
+    ctx.fillStyle = "#4faa55";
+    ctx.beginPath(); ctx.ellipse(hx, hy, unit * 0.045, unit * 0.032, -0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(hx + unit * 0.02, hy - unit * 0.01, unit * 0.008, 0, Math.PI * 2); ctx.fill();
+    // tongue flick
+    if (Math.sin(t * 10 + cx) > 0.3) {
+      ctx.strokeStyle = "#e23"; ctx.lineWidth = unit * 0.006;
+      ctx.beginPath(); ctx.moveTo(hx + unit * 0.04, hy); ctx.lineTo(hx + unit * 0.08, hy - unit * 0.005); ctx.stroke();
+    }
   }
 
-  function drawTree(ctx, cx, baseY, unit, seed) {
-    const h = unit * (0.3 + seed * 0.15);
-    ctx.fillStyle = "#5c3d1e";
-    ctx.fillRect(cx - unit * 0.015, baseY - h * 0.4, unit * 0.03, h * 0.4);
-    const g = ctx.createRadialGradient(cx, baseY - h * 0.6, 1, cx, baseY - h * 0.6, h * 0.4);
-    g.addColorStop(0, "#5fae55"); g.addColorStop(1, "#2f6b32");
+  function drawBat(ctx, cx, baseY, unit, w) {
+    const cy = baseY - unit * 0.16 + Math.sin(t * 3 + cx) * unit * 0.02;
+    shadow(ctx, cx, baseY, w * 0.35);
+    const flap = Math.sin(t * 12 + cx) * 0.5;
+    ctx.fillStyle = "#2a1830";
+    // wings
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.quadraticCurveTo(cx + dir * w * 0.3, cy - unit * 0.06 - flap * unit * 0.05, cx + dir * w * 0.55, cy + unit * 0.01);
+      ctx.quadraticCurveTo(cx + dir * w * 0.32, cy + unit * 0.03, cx + dir * w * 0.2, cy + unit * 0.05);
+      ctx.quadraticCurveTo(cx + dir * w * 0.15, cy + unit * 0.02, cx, cy);
+      ctx.closePath(); ctx.fill();
+    }
+    // body
+    ctx.fillStyle = "#1a0f22";
+    ctx.beginPath(); ctx.ellipse(cx, cy, unit * 0.04, unit * 0.05, 0, 0, Math.PI * 2); ctx.fill();
+    // ears
+    ctx.beginPath(); ctx.moveTo(cx - unit * 0.02, cy - unit * 0.04); ctx.lineTo(cx - unit * 0.035, cy - unit * 0.075); ctx.lineTo(cx - unit * 0.005, cy - unit * 0.05); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + unit * 0.02, cy - unit * 0.04); ctx.lineTo(cx + unit * 0.035, cy - unit * 0.075); ctx.lineTo(cx + unit * 0.005, cy - unit * 0.05); ctx.fill();
+    // eyes
+    ctx.fillStyle = "#ff3b30"; ctx.shadowBlur = unit * 0.02; ctx.shadowColor = "#ff3b30";
+    ctx.beginPath(); ctx.arc(cx - unit * 0.015, cy - unit * 0.01, unit * 0.008, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + unit * 0.015, cy - unit * 0.01, unit * 0.008, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawRakshasa(ctx, cx, baseY, unit, w) {
+    const h = unit * 0.22, top = baseY - h;
+    const bob = Math.sin(t * 4 + cx) * unit * 0.008;
+    shadow(ctx, cx, baseY, w * 0.55);
+    ctx.save(); ctx.translate(0, bob);
+    // body
+    const g = ctx.createLinearGradient(0, top, 0, baseY);
+    g.addColorStop(0, "#4a6a2a"); g.addColorStop(1, "#243812");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(cx, baseY - h * 0.55, h * 0.34, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx - h * 0.2, baseY - h * 0.4, h * 0.22, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + h * 0.2, baseY - h * 0.42, h * 0.22, 0, Math.PI * 2); ctx.fill();
+    rrect(ctx, cx - w * 0.34, top + h * 0.3, w * 0.68, h * 0.7, w * 0.12); ctx.fill();
+    // arms
+    ctx.strokeStyle = "#3a5420"; ctx.lineWidth = w * 0.12; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx - w * 0.3, top + h * 0.45); ctx.lineTo(cx - w * 0.42, top + h * 0.75); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + w * 0.3, top + h * 0.45); ctx.lineTo(cx + w * 0.42, top + h * 0.75); ctx.stroke();
+    // head
+    ctx.fillStyle = "#557a30";
+    ctx.beginPath(); ctx.arc(cx, top + h * 0.24, h * 0.23, 0, Math.PI * 2); ctx.fill();
+    // horns
+    ctx.strokeStyle = "#e8dcc0"; ctx.lineWidth = w * 0.06;
+    ctx.beginPath(); ctx.moveTo(cx - h * 0.14, top + h * 0.1); ctx.lineTo(cx - h * 0.26, top - h * 0.05);
+    ctx.moveTo(cx + h * 0.14, top + h * 0.1); ctx.lineTo(cx + h * 0.26, top - h * 0.05); ctx.stroke();
+    // eyes
+    ctx.fillStyle = "#ffdd33"; ctx.shadowBlur = unit * 0.02; ctx.shadowColor = "#ffcc00";
+    ctx.beginPath(); ctx.arc(cx - h * 0.09, top + h * 0.22, h * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + h * 0.09, top + h * 0.22, h * 0.05, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = "#111";
+    ctx.beginPath(); ctx.arc(cx - h * 0.09, top + h * 0.22, h * 0.02, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + h * 0.09, top + h * 0.22, h * 0.02, 0, Math.PI * 2); ctx.fill();
+    // fangs
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.moveTo(cx - h * 0.06, top + h * 0.34); ctx.lineTo(cx - h * 0.02, top + h * 0.34); ctx.lineTo(cx - h * 0.04, top + h * 0.42); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx + h * 0.06, top + h * 0.34); ctx.lineTo(cx + h * 0.02, top + h * 0.34); ctx.lineTo(cx + h * 0.04, top + h * 0.42); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDemon(ctx, cx, baseY, unit, w) {
+    const h = unit * 0.27, top = baseY - h;
+    const bob = Math.sin(t * 3 + cx) * unit * 0.01;
+    shadow(ctx, cx, baseY, w * 0.6);
+    ctx.save(); ctx.translate(0, bob);
+    const g = ctx.createLinearGradient(0, top, 0, baseY);
+    g.addColorStop(0, "#4a1440"); g.addColorStop(1, "#1c0820");
+    ctx.fillStyle = g;
+    rrect(ctx, cx - w * 0.4, top + h * 0.26, w * 0.8, h * 0.74, w * 0.12); ctx.fill();
+    // shoulders spikes
+    ctx.fillStyle = "#2a0e28";
+    for (const dx of [-w * 0.36, w * 0.36]) {
+      ctx.beginPath(); ctx.moveTo(cx + dx, top + h * 0.34); ctx.lineTo(cx + dx * 1.2, top + h * 0.18); ctx.lineTo(cx + dx * 0.7, top + h * 0.34); ctx.fill();
+    }
+    // arms with club
+    ctx.strokeStyle = "#3a1030"; ctx.lineWidth = w * 0.14; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx + w * 0.34, top + h * 0.4); ctx.lineTo(cx + w * 0.5, top + h * 0.2); ctx.stroke();
+    ctx.fillStyle = "#5a2a18";
+    ctx.beginPath(); ctx.arc(cx + w * 0.5, top + h * 0.14, w * 0.12, 0, Math.PI * 2); ctx.fill();
+    // head
+    ctx.fillStyle = "#5a1a50";
+    ctx.beginPath(); ctx.arc(cx, top + h * 0.2, h * 0.24, 0, Math.PI * 2); ctx.fill();
+    // big horns
+    ctx.strokeStyle = "#160616"; ctx.lineWidth = w * 0.09;
+    ctx.beginPath(); ctx.moveTo(cx - h * 0.16, top + h * 0.06); ctx.quadraticCurveTo(cx - h * 0.36, top - h * 0.12, cx - h * 0.2, top - h * 0.2);
+    ctx.moveTo(cx + h * 0.16, top + h * 0.06); ctx.quadraticCurveTo(cx + h * 0.36, top - h * 0.12, cx + h * 0.2, top - h * 0.2); ctx.stroke();
+    // glowing eyes
+    ctx.fillStyle = "#ff2a2a"; ctx.shadowBlur = unit * 0.03; ctx.shadowColor = "#ff2a2a";
+    ctx.beginPath(); ctx.arc(cx - h * 0.1, top + h * 0.18, h * 0.055, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + h * 0.1, top + h * 0.18, h * 0.055, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // grin
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = w * 0.03;
+    ctx.beginPath(); ctx.arc(cx, top + h * 0.28, h * 0.09, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- scenery ----
+  function drawTree(ctx, cx, baseY, unit, seed) {
+    const h = unit * (0.34 + seed * 0.16);
+    ctx.fillStyle = "#5c3d1e"; ctx.fillRect(cx - unit * 0.017, baseY - h * 0.4, unit * 0.034, h * 0.4);
+    const g = ctx.createRadialGradient(cx, baseY - h * 0.62, 1, cx, baseY - h * 0.62, h * 0.42);
+    g.addColorStop(0, "#63b459"); g.addColorStop(1, "#2f6b32");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, baseY - h * 0.58, h * 0.36, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx - h * 0.22, baseY - h * 0.42, h * 0.24, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + h * 0.22, baseY - h * 0.44, h * 0.24, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawBush(ctx, cx, baseY, unit, seed) {
+    const h = unit * (0.1 + seed * 0.05);
+    const g = ctx.createRadialGradient(cx, baseY - h, 1, cx, baseY - h, h * 1.4);
+    g.addColorStop(0, "#5aa64f"); g.addColorStop(1, "#2f6b32");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx - h * 0.6, baseY - h * 0.4, h * 0.7, 0, Math.PI * 2);
+    ctx.arc(cx + h * 0.6, baseY - h * 0.4, h * 0.7, 0, Math.PI * 2);
+    ctx.arc(cx, baseY - h, h * 0.9, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function drawPalm(ctx, cx, baseY, unit, seed) {
+    const h = unit * (0.4 + seed * 0.2);
+    ctx.strokeStyle = "#7a5326"; ctx.lineWidth = unit * 0.03; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx, baseY); ctx.quadraticCurveTo(cx + unit * 0.05, baseY - h * 0.6, cx + unit * 0.02, baseY - h); ctx.stroke();
+    ctx.fillStyle = "#3f8f3a";
+    for (let a = 0; a < 6; a++) {
+      const ang = -Math.PI / 2 + (a - 2.5) * 0.5;
+      ctx.save(); ctx.translate(cx + unit * 0.02, baseY - h); ctx.rotate(ang);
+      ctx.beginPath(); ctx.ellipse(unit * 0.12, 0, unit * 0.13, unit * 0.03, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawPillar(ctx, cx, baseY, unit) {
-    const h = unit * 0.42;
-    const w = unit * 0.07;
+    const h = unit * 0.44, w = unit * 0.08;
     const g = ctx.createLinearGradient(cx - w, 0, cx + w, 0);
-    g.addColorStop(0, "#c9a86a"); g.addColorStop(0.5, "#f0d9a0"); g.addColorStop(1, "#a5824a");
+    g.addColorStop(0, "#8a6a3a"); g.addColorStop(0.5, "#c9a86a"); g.addColorStop(1, "#6a4a24");
     ctx.fillStyle = g;
     ctx.fillRect(cx - w * 0.5, baseY - h, w, h);
-    ctx.fillRect(cx - w * 0.8, baseY - h, w * 1.6, h * 0.08);
-    ctx.fillRect(cx - w * 0.8, baseY - h * 0.06, w * 1.6, h * 0.06);
+    ctx.fillRect(cx - w * 0.85, baseY - h, w * 1.7, h * 0.08);
+    ctx.fillRect(cx - w * 0.85, baseY - h * 0.06, w * 1.7, h * 0.06);
+  }
+
+  function drawPost(ctx, cx, baseY, unit) {
+    const h = unit * 0.3, w = unit * 0.09;
+    const g = ctx.createLinearGradient(cx - w, 0, cx + w, 0);
+    g.addColorStop(0, "#7c848d"); g.addColorStop(0.5, "#c2c8cf"); g.addColorStop(1, "#5c646d");
+    ctx.fillStyle = g; ctx.fillRect(cx - w * 0.5, baseY - h, w, h);
+    ctx.fillStyle = "#ffd15c"; ctx.fillRect(cx - w * 0.5, baseY - h, w, h * 0.05);
+  }
+
+  function drawTorch(ctx, cx, baseY, unit) {
+    const h = unit * 0.3;
+    ctx.strokeStyle = "#2a1a10"; ctx.lineWidth = unit * 0.03;
+    ctx.beginPath(); ctx.moveTo(cx, baseY); ctx.lineTo(cx, baseY - h); ctx.stroke();
+    const fy = baseY - h;
+    const glow = ctx.createRadialGradient(cx, fy, 1, cx, fy, unit * 0.1);
+    glow.addColorStop(0, "rgba(255,180,60,0.9)"); glow.addColorStop(1, "rgba(255,120,30,0)");
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, fy, unit * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ffcf6a";
+    const fl = unit * (0.03 + 0.01 * Math.sin(t * 12 + cx));
+    ctx.beginPath(); ctx.moveTo(cx - fl, fy); ctx.quadraticCurveTo(cx, fy - fl * 2.5, cx + fl, fy); ctx.fill();
   }
 
   return { reset, update, draw };

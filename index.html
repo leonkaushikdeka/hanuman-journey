@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#ff7a1a" />
-  <meta name="description" content="Hanuman's Journey — an endless runner where Hanuman carries Shri Ram's ring across the Setu to Lanka." />
+  <meta name="description" content="Hanuman's Journey — carry Shri Ram's ring across four levels of monsters and reach Shri Ram." />
   <title>Hanuman's Journey — Ring to Lanka</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -17,18 +17,29 @@
 
     <!-- In-game HUD -->
     <div id="hud" class="hidden" aria-hidden="true">
-      <div class="hud-left">
-        <div class="hud-score"><span id="score">0</span></div>
-        <div class="hud-sub"><span id="distance">0</span> m towards Lanka</div>
-      </div>
-      <div class="hud-right">
-        <div class="hud-rings">💍 <span id="rings">0</span></div>
-        <div class="hud-buttons">
-          <button id="btn-mute" class="icon-btn" title="Sound">🔊</button>
-          <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+      <div class="hud-top">
+        <div class="hud-left">
+          <div class="hud-score"><span id="score">0</span></div>
+          <div class="hud-hearts" id="hearts">❤❤❤</div>
+        </div>
+        <div class="hud-center">
+          <div class="level-label" id="level-label">Level 1/4 · Kishkindha Forest</div>
+          <div class="progress">
+            <div class="progress-fill" id="progress-fill"></div>
+            <span class="progress-goal">🙏</span>
+          </div>
+          <div class="dist-label"><span id="distance">0</span> m</div>
+        </div>
+        <div class="hud-right">
+          <div class="hud-rings">💍 <span id="rings">0</span></div>
+          <div class="hud-buttons">
+            <button id="btn-mute" class="icon-btn" title="Sound">🔊</button>
+            <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
+          </div>
         </div>
       </div>
       <div id="toast" class="toast"></div>
+      <div id="level-banner" class="level-banner"></div>
     </div>
 
     <!-- Start screen -->
@@ -36,18 +47,21 @@
       <div class="panel">
         <div class="crest">🛕</div>
         <h1>Hanuman's Journey</h1>
-        <p class="tag">Carry Shri Ram's ring across the Setu to Lanka</p>
+        <p class="tag">Cross 4 levels of monsters and deliver Shri Ram's ring</p>
         <button id="btn-start" class="primary">▶ Begin the Journey</button>
+        <div class="stages">
+          <span>🌳 Forest</span><span>🏖 Shore</span><span>🌊 Setu</span><span>🏰 Lanka</span><span>🙏 Ram</span>
+        </div>
         <div class="controls">
           <div class="ctl"><b>Swipe / Arrows</b><span>Left · Right to change lane</span></div>
-          <div class="ctl"><b>Swipe Up / ↑ / Space</b><span>Jump over logs & rocks</span></div>
-          <div class="ctl"><b>Swipe Down / ↓</b><span>Slide under arches</span></div>
+          <div class="ctl"><b>Swipe Up / ↑ / Tap</b><span>Jump snakes & logs</span></div>
+          <div class="ctl"><b>Swipe Down / ↓</b><span>Slide under bats & vines</span></div>
         </div>
-        <div class="best">Best: <span id="best-menu">0</span></div>
+        <div class="best">Best: <span id="best-menu">0</span> · ❤×3 per level</div>
       </div>
     </div>
 
-    <!-- Pause screen -->
+    <!-- Pause -->
     <div id="pause" class="overlay hidden">
       <div class="panel">
         <h2>Paused</h2>
@@ -56,19 +70,46 @@
       </div>
     </div>
 
-    <!-- Game over screen -->
+    <!-- Level complete -->
+    <div id="levelclear" class="overlay hidden">
+      <div class="panel">
+        <div class="crest">🚩</div>
+        <h2 id="lc-title">Level Complete!</h2>
+        <p id="lc-sub" class="tag"></p>
+        <button id="btn-next" class="primary">Next Level ▶</button>
+      </div>
+    </div>
+
+    <!-- Game over (fell) -->
     <div id="over" class="overlay hidden">
       <div class="panel">
-        <div class="crest">🙏</div>
-        <h2 id="over-title">Jai Shri Ram!</h2>
+        <div class="crest">💔</div>
+        <h2 id="over-title">You Fell</h2>
+        <p id="over-sub" class="tag"></p>
         <div class="results">
           <div class="res"><span id="final-score">0</span><small>Score</small></div>
           <div class="res"><span id="final-dist">0</span><small>Metres</small></div>
           <div class="res"><span id="final-rings">0</span><small>Rings</small></div>
         </div>
-        <div id="new-best" class="new-best hidden">✨ New Best!</div>
-        <button id="btn-retry" class="primary">Run Again</button>
+        <button id="btn-retry" class="primary">Retry Level</button>
         <button id="btn-menu" class="ghost">Menu</button>
+      </div>
+    </div>
+
+    <!-- Victory: reached Ram -->
+    <div id="victory" class="overlay hidden">
+      <div class="panel">
+        <div class="crest">🙏</div>
+        <h2>Jai Shri Ram!</h2>
+        <p class="tag">Hanuman delivered the ring to Shri Ram.</p>
+        <div class="results">
+          <div class="res"><span id="v-score">0</span><small>Score</small></div>
+          <div class="res"><span id="v-rings">0</span><small>Rings</small></div>
+          <div class="res"><span id="v-coins">0</span><small>Laddus</small></div>
+        </div>
+        <div id="v-best" class="new-best hidden">✨ New Best!</div>
+        <button id="btn-play-again" class="primary">Play Again</button>
+        <button id="btn-victory-menu" class="ghost">Menu</button>
       </div>
     </div>
   </div>
@@ -77,6 +118,7 @@
   <script src="js/storage.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
+  <script src="js/particles.js"></script>
   <script src="js/world.js"></script>
   <script src="js/player.js"></script>
   <script src="js/obstacles.js"></script>

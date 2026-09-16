@@ -1,42 +1,53 @@
-/* Main controller: state machine, loop, rendering, HUD, scoring. */
+/* Main controller: level progression, hearts, states, loop, HUD, scoring. */
 
 const Game = (() => {
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
-  let state = "menu";           // menu | playing | paused | over
-  let speed = CFG.baseSpeed;
-  let distZ = 0;                // travelled distance (drives lane dashes)
-  let metres = 0;
-  let attractMetres = 0;
-  let coins = 0, rings = 0, score = 0;
+  // states: menu | playing | levelclear | over | victory | paused
+  let state = "menu";
+  let levelIndex = 0;
+  let levelDist = 0;
+  let coins = 0, rings = 0, score = 0, hearts = CFG.hearts;
   let best = Store.getBest();
+  let speed = CFG.baseSpeed;
+  let distZ = 0, graceZ = 0, clock = 0, petalCarry = 0;
   let last = 0;
 
-  // ---------- DOM ----------
   const el = {
     hud: document.getElementById("hud"),
     score: document.getElementById("score"),
     distance: document.getElementById("distance"),
     rings: document.getElementById("rings"),
+    hearts: document.getElementById("hearts"),
+    levelLabel: document.getElementById("level-label"),
+    progressFill: document.getElementById("progress-fill"),
     toast: document.getElementById("toast"),
+    banner: document.getElementById("level-banner"),
     menu: document.getElementById("menu"),
     pause: document.getElementById("pause"),
+    levelclear: document.getElementById("levelclear"),
     over: document.getElementById("over"),
+    victory: document.getElementById("victory"),
     bestMenu: document.getElementById("best-menu"),
+    lcTitle: document.getElementById("lc-title"),
+    lcSub: document.getElementById("lc-sub"),
+    overTitle: document.getElementById("over-title"),
+    overSub: document.getElementById("over-sub"),
     finalScore: document.getElementById("final-score"),
     finalDist: document.getElementById("final-dist"),
     finalRings: document.getElementById("final-rings"),
-    newBest: document.getElementById("new-best"),
-    overTitle: document.getElementById("over-title"),
+    vScore: document.getElementById("v-score"),
+    vRings: document.getElementById("v-rings"),
+    vCoins: document.getElementById("v-coins"),
+    vBest: document.getElementById("v-best"),
     mute: document.getElementById("btn-mute"),
   };
 
-  // ---------- canvas sizing ----------
+  // ---------- canvas ----------
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = window.innerWidth, h = window.innerHeight;
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
     canvas.style.width = w + "px";
@@ -46,136 +57,193 @@ const Game = (() => {
   }
 
   // ---------- overlays ----------
-  function show(node) { node.classList.remove("hidden"); }
-  function hide(node) { node.classList.add("hidden"); }
-
-  function setState(next) {
-    state = next;
-    hide(el.menu); hide(el.pause); hide(el.over); el.hud.classList.add("hidden");
-    if (next === "menu") { el.bestMenu.textContent = best; show(el.menu); }
-    else if (next === "playing") { el.hud.classList.remove("hidden"); }
-    else if (next === "paused") { show(el.pause); }
-    else if (next === "over") { showOver(); }
+  const OVERLAYS = ["menu", "pause", "levelclear", "over", "victory"];
+  function refreshOverlays() {
+    for (const k of OVERLAYS) el[k].classList.add("hidden");
+    el.hud.classList.add("hidden");
+    if (state === "menu") { el.bestMenu.textContent = best; el.menu.classList.remove("hidden"); }
+    else if (state === "playing") el.hud.classList.remove("hidden");
+    else if (state === "paused") el.pause.classList.remove("hidden");
+    else if (state === "levelclear") el.levelclear.classList.remove("hidden");
+    else if (state === "over") el.over.classList.remove("hidden");
+    else if (state === "victory") el.victory.classList.remove("hidden");
   }
+
+  function prevGoals() {
+    let s = 0;
+    for (let i = 0; i < levelIndex; i++) s += LEVELS[i].goal;
+    return s;
+  }
+  function displayDist() { return prevGoals() + levelDist; }
+  function computeScore() { return rings * 100 + coins * 10 + Math.floor(displayDist()) + levelIndex * 250; }
 
   // ---------- lifecycle ----------
   function startGame() {
-    speed = CFG.baseSpeed;
-    distZ = 0; metres = 0; coins = 0; rings = 0; score = 0;
+    coins = 0; rings = 0; score = 0;
+    Sound.unlock(); Sound.startMusic();
+    startLevel(0);
+  }
+
+  function startLevel(i) {
+    levelIndex = i;
+    levelDist = 0;
+    hearts = CFG.hearts;
+    speed = LEVELS[i].speed;
+    distZ = 0;
+    graceZ = CFG.graceZ + (i === 0 ? 6 : 0); // extra breathing room on level 1
     Player.reset();
     Obstacles.reset();
-    Sound.unlock();
-    Sound.startMusic();
+    Particles.reset();
     updateHud();
-    setState("playing");
+    state = "playing";
+    refreshOverlays();
+    showBanner(`Level ${i + 1}: ${LEVELS[i].name}`);
   }
 
-  function pause() {
-    if (state !== "playing") return;
-    setState("paused");
-  }
-  function resume() {
-    if (state !== "paused") return;
-    last = performance.now();
-    setState("playing");
-  }
-  function quitToMenu() { Sound.stopMusic(); setState("menu"); }
-
-  function onHit() {
-    if (state !== "playing") return;
-    Sound.hit();
-    Player.hurtFlash();
-    endGame();
+  function completeLevel() {
+    Sound.ring();
+    if (levelIndex >= LEVELS.length - 1) { victory(); return; }
+    state = "levelclear";
+    el.lcTitle.textContent = `${LEVELS[levelIndex].name} cleared!`;
+    el.lcSub.textContent = `Next: ${LEVELS[levelIndex + 1].name}`;
+    refreshOverlays();
   }
 
-  function endGame() {
-    Sound.stopMusic();
+  function nextLevel() { if (state === "levelclear") startLevel(levelIndex + 1); }
+
+  function victory() {
+    state = "victory";
+    Sound.stopMusic(); Sound.ring();
+    score = computeScore();
     const isBest = score > best;
     if (isBest) { best = score; Store.setBest(best); }
-    el.newBest.classList.toggle("hidden", !isBest);
-    setState("over");
+    el.vBest.classList.toggle("hidden", !isBest);
+    el.vScore.textContent = score;
+    el.vRings.textContent = rings;
+    el.vCoins.textContent = coins;
+    refreshOverlays();
   }
 
-  function showOver() {
+  function onHit() {
+    if (state !== "playing" || Player.invincible) return;
+    hearts--;
+    Sound.hit();
+    Particles.burst(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.08);
+    Player.setInvincible(CFG.iFrames);
+    updateHearts();
+    if (hearts <= 0) endRun();
+    else toast(hearts === 1 ? "Last heart!" : "-1 ❤");
+  }
+
+  function endRun() {
+    state = "over";
+    Sound.stopMusic();
+    score = computeScore();
+    if (score > best) { best = score; Store.setBest(best); }
+    el.overTitle.textContent = "You Fell";
+    el.overSub.textContent = `${LEVELS[levelIndex].name} — Level ${levelIndex + 1} of 4`;
     el.finalScore.textContent = score;
-    el.finalDist.textContent = Math.floor(metres);
+    el.finalDist.textContent = Math.floor(displayDist());
     el.finalRings.textContent = rings;
-    el.overTitle.textContent = rings > 0 ? "Jai Shri Ram!" : "The Journey Pauses";
-    show(el.over);
+    refreshOverlays();
   }
 
-  // ---------- scoring ----------
-  function addCoin() {
-    coins++;
-    score = computeScore();
-    Sound.coin();
-    updateHud();
-  }
-  function addRing() {
-    rings++;
-    score = computeScore();
-    Sound.ring();
-    toast(chance(0.5) ? "Jai Shri Ram!" : "Ring Collected!");
-    updateHud();
-  }
-  function computeScore() { return Math.floor(metres) + coins * 10 + rings * 100; }
+  function retryLevel() { if (state === "over") startLevel(levelIndex); }
+  function quitToMenu() { Sound.stopMusic(); state = "menu"; refreshOverlays(); }
+  function pause() { if (state === "playing") { state = "paused"; refreshOverlays(); } }
+  function resume() { if (state === "paused") { last = performance.now(); state = "playing"; refreshOverlays(); } }
 
+  // ---------- scoring / hud ----------
+  function addCoin() { coins++; Particles.sparkle(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.1, "rgba(255,220,120,"); Sound.coin(); }
+  function addRing() { rings++; Particles.sparkle(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.12, "rgba(255,180,90,"); Sound.ring(); toast(chance(0.5) ? "Jai Shri Ram!" : "Ring!"); }
+
+  function updateHearts() {
+    let h = "";
+    for (let i = 0; i < CFG.hearts; i++) h += i < hearts ? "❤" : "🖤";
+    el.hearts.textContent = h;
+  }
   function updateHud() {
+    score = computeScore();
     el.score.textContent = score;
-    el.distance.textContent = Math.floor(metres);
+    el.distance.textContent = Math.floor(displayDist());
     el.rings.textContent = rings;
+    el.levelLabel.textContent = `Level ${levelIndex + 1}/4 · ${LEVELS[levelIndex].name}`;
+    el.progressFill.style.width = clamp(levelDist / LEVELS[levelIndex].goal, 0, 1) * 100 + "%";
+    updateHearts();
   }
 
   let toastTimer = null;
   function toast(text) {
     el.toast.textContent = text;
-    el.toast.classList.remove("show");
-    void el.toast.offsetWidth; // reflow to restart animation
-    el.toast.classList.add("show");
+    el.toast.classList.remove("show"); void el.toast.offsetWidth; el.toast.classList.add("show");
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => el.toast.classList.remove("show"), 1200);
+  }
+  function showBanner(text) {
+    el.banner.textContent = text;
+    el.banner.classList.remove("show"); void el.banner.offsetWidth; el.banner.classList.add("show");
   }
 
   // ---------- loop ----------
   function frame(now) {
     const dt = clamp((now - last) / 1000, 0, 0.05) || 0;
     last = now;
-
-    if (state === "playing") {
-      speed = clamp(CFG.baseSpeed + metres * CFG.speedRamp * 0.01, CFG.baseSpeed, CFG.maxSpeed);
-      distZ += speed * dt;
-      metres += speed * dt * CFG.metresPerZ;
-      Player.update(dt, speed);
-      Obstacles.update(dt, speed, metres);
-      score = computeScore();
-      updateHud();
-    } else if (state === "menu" || state === "over") {
-      // attract animation behind the panels
-      const s = CFG.baseSpeed * 0.7;
-      distZ += s * dt;
-      attractMetres += s * dt * CFG.metresPerZ;
-      Player.update(dt, s);
-    }
-
+    if (state !== "paused") { clock += dt; step(dt); }
     render();
     requestAnimationFrame(frame);
   }
 
+  function step(dt) {
+    if (state === "playing") {
+      const lvl = LEVELS[levelIndex];
+      speed = clamp(lvl.speed + levelDist * CFG.levelRamp, lvl.speed, lvl.speed + CFG.maxSpeedBonus);
+      const dz = speed * dt;
+      distZ += dz;
+      levelDist += dz * CFG.metresPerZ;
+      if (graceZ > 0) graceZ -= dz;
+      Player.update(dt, speed);
+      Obstacles.update(dt, speed, {
+        pool: lvl.pool, obstProb: lvl.obstProb, biome: lvl.biome,
+        spawn: graceZ <= 0, metres: levelDist,
+      });
+      Particles.ambient(dt, lvl.biome, World.layout());
+      Particles.update(dt);
+      updateHud();
+      if (levelDist >= lvl.goal) completeLevel();
+    } else if (state === "victory") {
+      petalCarry += dt;
+      while (petalCarry >= 0.12) { petalCarry -= 0.12; Particles.petal(World.layout()); }
+      Particles.update(dt);
+    } else { // menu / levelclear / over : attract run
+      const s = CFG.baseSpeed * 0.7;
+      distZ += s * dt;
+      Player.update(dt, s);
+      Particles.ambient(dt, attractBiome(), World.layout());
+      Particles.update(dt);
+    }
+  }
+
+  function attractBiome() { return state === "menu" ? "jungle" : LEVELS[levelIndex].biome; }
+
   function render() {
-    const bgMetres = state === "playing" ? metres : attractMetres;
-    World.drawBackground(ctx, bgMetres);
-    World.drawTrack(ctx, bgMetres, distZ);
+    if (state === "victory") {
+      World.drawRamScene(ctx, clock);
+      Particles.draw(ctx);
+      return;
+    }
+    const biome = state === "menu" ? "jungle" : LEVELS[levelIndex].biome;
+    World.drawBackground(ctx, biome, clock);
+    World.drawTrack(ctx, biome, distZ);
     if (state === "playing" || state === "paused") Obstacles.draw(ctx);
     Player.draw(ctx);
+    Particles.draw(ctx);
   }
 
   // ---------- input ----------
   function handleAction(a) {
     Sound.unlock();
     switch (state) {
-      case "menu":
-        if (a === "start" || a === "up") startGame();
-        break;
+      case "menu": if (a === "start" || a === "up") startGame(); break;
       case "playing":
         if (a === "left") Player.left();
         else if (a === "right") Player.right();
@@ -183,48 +251,44 @@ const Game = (() => {
         else if (a === "down") Player.slide();
         else if (a === "pause") pause();
         break;
-      case "paused":
-        if (a === "pause" || a === "start") resume();
-        break;
-      case "over":
-        if (a === "start" || a === "up") startGame();
-        break;
+      case "paused": if (a === "pause" || a === "start") resume(); break;
+      case "levelclear": if (a === "start" || a === "up") nextLevel(); break;
+      case "over": if (a === "start" || a === "up") retryLevel(); break;
+      case "victory": if (a === "start" || a === "up") startGame(); break;
     }
   }
 
-  // ---------- wire up ----------
+  // ---------- init ----------
   function init() {
     resize();
     window.addEventListener("resize", resize);
     window.addEventListener("orientationchange", () => setTimeout(resize, 200));
-
     Input.bind(handleAction);
 
     document.getElementById("btn-start").addEventListener("click", startGame);
-    document.getElementById("btn-retry").addEventListener("click", startGame);
+    document.getElementById("btn-next").addEventListener("click", nextLevel);
+    document.getElementById("btn-retry").addEventListener("click", retryLevel);
     document.getElementById("btn-resume").addEventListener("click", resume);
     document.getElementById("btn-quit").addEventListener("click", quitToMenu);
     document.getElementById("btn-menu").addEventListener("click", quitToMenu);
+    document.getElementById("btn-play-again").addEventListener("click", startGame);
+    document.getElementById("btn-victory-menu").addEventListener("click", quitToMenu);
     document.getElementById("btn-pause").addEventListener("click", pause);
 
-    const muteBtn = el.mute;
-    muteBtn.textContent = Sound.isMuted() ? "🔇" : "🔊";
-    muteBtn.addEventListener("click", (e) => {
+    el.mute.textContent = Sound.isMuted() ? "🔇" : "🔊";
+    el.mute.addEventListener("click", (e) => {
       e.stopPropagation();
-      const m = Sound.toggleMute();
-      muteBtn.textContent = m ? "🔇" : "🔊";
+      el.mute.textContent = Sound.toggleMute() ? "🔇" : "🔊";
     });
 
-    // pause when tab hidden
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden && state === "playing") pause();
-    });
+    document.addEventListener("visibilitychange", () => { if (document.hidden && state === "playing") pause(); });
 
-    setState("menu");
+    updateHearts();
+    state = "menu";
+    refreshOverlays();
     last = performance.now();
     requestAnimationFrame(frame);
 
-    // PWA (only registers on http/https, silently skips file://)
     if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }

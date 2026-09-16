@@ -1,29 +1,66 @@
-/* Shared config + small helpers. Loaded first; everything lives on window. */
+/* Shared config, level definitions + small helpers. Loaded first. */
 
 const CFG = {
-  lanes: [-1, 0, 1],       // world lane indices
-  zK: 0.15,                // perspective depth constant (higher = flatter)
-  zFar: 26,                // spawn distance ahead
-  zResolve: 0.55,          // distance at which a collision/collect is judged
-  zGone: -2.2,             // distance behind camera before removal
+  lanes: [-1, 0, 1],
+  zK: 0.15,
+  zFar: 26,
+  zResolve: 0.55,
+  zGone: -2.2,
 
-  baseSpeed: 9.5,          // starting forward speed (z units / sec)
-  maxSpeed: 27,            // speed cap
-  speedRamp: 0.05,         // speed gained per metre travelled
-  metresPerZ: 1.6,         // distance conversion for the scoreboard
+  baseSpeed: 9.5,          // attract-mode speed
+  maxSpeedBonus: 6,        // extra speed a level can ramp to
+  levelRamp: 0.006,        // speed gained per metre within a level
+  metresPerZ: 1.6,
 
-  spawnGapZ: 5.4,          // z-distance between obstacle rows
-  laneSpreadFrac: 0.255,   // near-plane half lane spread (fraction of width)
-  horizonFrac: 0.33,       // horizon height (fraction of height)
-  groundFrac: 0.93,        // near ground line (fraction of height)
+  spawnGapZ: 5.4,
+  laneSpreadFrac: 0.255,
+  horizonFrac: 0.34,
+  groundFrac: 0.93,
 
-  // jump physics expressed as fractions of screen height (resolution independent)
-  jumpVel: 1.28,           // initial upward velocity (frac/s)
-  gravity: 3.1,            // downward accel (frac/s^2)
-  slideDur: 0.6,           // seconds
-  laneEase: 13,            // lane-change snappiness
+  jumpVel: 1.3,
+  gravity: 3.1,
+  slideDur: 0.6,
+  laneEase: 13,
 
-  ringEveryM: 260,         // guaranteed ring roughly every N metres
+  hearts: 3,
+  iFrames: 1.5,            // invincibility seconds after a hit
+  graceZ: 9,               // no obstacles for the first N z of a level
+  ringEveryM: 220,
+};
+
+/* The four legs of Hanuman's journey. Each has its own biome, goal
+   distance (metres), starting speed and monster/obstacle pool. */
+const LEVELS = [
+  {
+    name: "Kishkindha Forest", biome: "jungle", goal: 420, speed: 8.5, obstProb: 0.22,
+    // gentle intro: mostly jump/slide, a single lane-blocker, no monsters that force a dodge
+    pool: ["log", "log", "snake", "vine", "rock"],
+  },
+  {
+    name: "The Southern Shore", biome: "coast", goal: 620, speed: 11, obstProb: 0.42,
+    pool: ["log", "rock", "snake", "bat", "vine", "rakshasa"],
+  },
+  {
+    name: "Ram Setu Bridge", biome: "sea", goal: 780, speed: 12.5, obstProb: 0.46,
+    pool: ["rock", "snake", "bat", "vine", "rakshasa"],
+  },
+  {
+    name: "Lanka", biome: "lanka", goal: 950, speed: 14, obstProb: 0.5,
+    pool: ["rock", "bat", "vine", "rakshasa", "demon"],
+  },
+];
+
+// gameplay category for each obstacle/monster kind
+const KIND = {
+  log:      { cat: "jump" },   // hop over
+  snake:    { cat: "jump" },   // hop over (monster)
+  rock:     { cat: "lane" },   // change lane
+  rakshasa: { cat: "lane" },   // change lane (monster)
+  demon:    { cat: "lane" },   // change lane (big monster)
+  vine:     { cat: "slide" },  // slide under
+  bat:      { cat: "slide" },  // slide under (flying monster)
+  coin:     { cat: "coin" },
+  ring:     { cat: "ring" },
 };
 
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -34,7 +71,6 @@ function choice(arr) { return arr[(Math.random() * arr.length) | 0]; }
 function chance(p) { return Math.random() < p; }
 function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
 
-// rounded rectangle path helper
 function rrect(ctx, x, y, w, h, r) {
   const rr = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
   ctx.beginPath();
@@ -44,4 +80,13 @@ function rrect(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
   ctx.closePath();
+}
+
+// mix two "#rrggbb" colors
+function mixHex(c1, c2, t) {
+  const a = parseInt(c1.slice(1), 16), b = parseInt(c2.slice(1), 16);
+  const r = Math.round(lerp((a >> 16) & 255, (b >> 16) & 255, t));
+  const g = Math.round(lerp((a >> 8) & 255, (b >> 8) & 255, t));
+  const bl = Math.round(lerp(a & 255, b & 255, t));
+  return `rgb(${r},${g},${bl})`;
 }

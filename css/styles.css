@@ -47,30 +47,84 @@ html, body {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  padding: max(14px, env(safe-area-inset-top)) 16px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  padding: max(12px, env(safe-area-inset-top)) 14px 14px;
   font-weight: 700;
 }
 
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
 .hud-score {
-  font-size: clamp(28px, 6vw, 46px);
+  font-size: clamp(24px, 5.4vw, 42px);
   line-height: 1;
   color: var(--gold);
   text-shadow: 0 2px 0 rgba(0,0,0,.45), 0 0 18px rgba(255,166,0,.5);
   font-variant-numeric: tabular-nums;
 }
 
-.hud-sub {
+.hud-left { flex-shrink: 0; }
+
+.hud-hearts {
   margin-top: 4px;
-  font-size: clamp(11px, 2.6vw, 14px);
-  color: var(--cream);
-  opacity: .85;
-  letter-spacing: .3px;
+  font-size: clamp(14px, 3.4vw, 20px);
+  letter-spacing: 2px;
+  white-space: nowrap;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,.5));
 }
 
-.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+/* center: level + progress */
+.hud-center {
+  flex: 1;
+  max-width: 340px;
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.level-label {
+  font-size: clamp(11px, 2.8vw, 15px);
+  color: var(--cream);
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  letter-spacing: .3px;
+  white-space: nowrap;
+}
+.progress {
+  position: relative;
+  width: min(70vw, 300px);
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid var(--panel-line);
+  overflow: visible;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+  box-shadow: 0 0 10px rgba(255,180,60,.7);
+  transition: width .15s linear;
+}
+.progress-goal {
+  position: absolute;
+  right: -14px;
+  top: -6px;
+  font-size: 16px;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+.dist-label {
+  font-size: clamp(10px, 2.4vw, 12px);
+  opacity: .8;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 
 .hud-rings {
   font-size: clamp(16px, 3.6vw, 22px);
@@ -229,6 +283,50 @@ button:active { transform: scale(.96); }
 }
 .res span { font-size: clamp(22px, 6vw, 30px); font-weight: 900; color: var(--gold); font-variant-numeric: tabular-nums; }
 .res small { font-size: 11px; opacity: .7; margin-top: 3px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* level intro banner */
+.level-banner {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  text-align: center;
+  font-size: clamp(22px, 6vw, 40px);
+  font-weight: 900;
+  color: var(--gold);
+  text-shadow: 0 3px 0 rgba(0,0,0,.5), 0 0 30px rgba(255,166,0,.7);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.level-banner.show { animation: banner 2s ease forwards; }
+@keyframes banner {
+  0% { opacity: 0; transform: translate(-50%, 20px) scale(.8); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1.05); }
+  75% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -18px) scale(1); }
+}
+
+/* menu stage chips */
+.stages {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 16px 0 4px;
+}
+.stages span {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  white-space: nowrap;
+}
+
+/* victory: let the Ram scene glow through */
+#victory { background: radial-gradient(120% 90% at 50% 20%, rgba(255,180,90,.35), rgba(6,4,2,.5)); }
+#victory .panel { background: linear-gradient(180deg, rgba(46,22,6,.86), rgba(24,12,3,.9)); }
 
 @media (min-height: 720px) {
   .panel { padding: 40px 30px 32px; }
