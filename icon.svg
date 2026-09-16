@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#ffb347"/>
+      <stop offset="55%" stop-color="#ff7a1a"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff3b0"/>
+      <stop offset="100%" stop-color="#e0a020"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- halo -->
+  <circle cx="256" cy="200" r="120" fill="#fff" opacity="0.16"/>
+  <!-- ring (the quest item) -->
+  <circle cx="256" cy="196" r="86" fill="none" stroke="url(#gold)" stroke-width="30"/>
+  <path d="M256 92 l22 34 -22 24 -22 -24 z" fill="#ff4d6d"/>
+  <!-- mace / gada -->
+  <rect x="242" y="286" width="28" height="150" rx="12" fill="#7a4a1a"/>
+  <circle cx="256" cy="300" r="46" fill="url(#gold)" stroke="#b9860b" stroke-width="6"/>
+  <!-- devanagari Om -->
+  <text x="256" y="330" font-size="120" text-anchor="middle" fill="#fff" opacity="0.9" font-family="serif">ॐ</text>
+</svg>

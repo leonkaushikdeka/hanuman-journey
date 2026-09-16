@@ -1,0 +1,19 @@
+{
+  "name": "Hanuman's Journey — Ring to Lanka",
+  "short_name": "Hanuman Run",
+  "description": "An endless runner where Hanuman carries Shri Ram's ring across the Setu to Lanka.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0d0a08",
+  "theme_color": "#ff7a1a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
