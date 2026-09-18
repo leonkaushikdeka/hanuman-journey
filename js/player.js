@@ -93,6 +93,11 @@ const Player = (() => {
     const OUT = "#7a3d0f"; // outline color
     ctx.lineJoin = "round";
 
+    ctx.save();
+    ctx.fillStyle = "#b92f1f"; ctx.strokeStyle = "#67170f"; ctx.lineWidth = u * .004;
+    const flutter = Math.sin(s.runPhase * 1.7) * u * .018;
+    ctx.beginPath(); ctx.moveTo(-cw * .42, shoulderY + torsoH * .18); ctx.quadraticCurveTo(-cw * 1.15, shoulderY + flutter, -cw * 1.65, shoulderY + u * .035 + flutter); ctx.lineTo(-cw * 1.47, shoulderY + u * .065 + flutter); ctx.quadraticCurveTo(-cw * .9, shoulderY + u * .04, -cw * .38, shoulderY + torsoH * .34); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+
     // tail
     ctx.strokeStyle = "#d96a1e"; ctx.lineWidth = cw * 0.36; ctx.lineCap = "round";
     const tsway = Math.sin(s.runPhase * 0.8) * u * 0.02;
@@ -113,6 +118,7 @@ const Player = (() => {
     // torso
     const tg = ctx.createLinearGradient(0, shoulderY, 0, hipY);
     tg.addColorStop(0, "#ffa64d"); tg.addColorStop(1, "#e0550a");
+    ctx.shadowBlur = u * .014; ctx.shadowColor = "rgba(0,0,0,.45)";
     ctx.fillStyle = tg; ctx.strokeStyle = OUT; ctx.lineWidth = u * 0.004;
     ctx.beginPath();
     ctx.moveTo(-cw * 0.42, hipY);
@@ -120,7 +126,7 @@ const Player = (() => {
     ctx.lineTo(cw * 0.5, shoulderY + torsoH * 0.2);
     ctx.quadraticCurveTo(cw * 0.5, shoulderY, 0, shoulderY);
     ctx.quadraticCurveTo(-cw * 0.5, shoulderY, -cw * 0.5, shoulderY + torsoH * 0.2);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
     // spine highlight
     ctx.strokeStyle = "rgba(255,220,170,0.5)"; ctx.lineWidth = u * 0.006;
     ctx.beginPath(); ctx.moveTo(0, shoulderY + torsoH * 0.15); ctx.lineTo(0, hipY - torsoH * 0.1); ctx.stroke();

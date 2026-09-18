@@ -1,132 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#ff7a1a" />
-  <meta name="description" content="Hanuman's Journey — carry Shri Ram's ring across four levels of monsters and reach Shri Ram." />
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#141008"><meta name="description" content="Run with Hanuman across four mythic realms and carry Shri Ram's sacred ring to Lanka.">
   <title>Hanuman's Journey — Ring to Lanka</title>
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="stylesheet" href="css/styles.css" />
-</head>
-<body>
-  <div id="app">
-    <canvas id="game"></canvas>
-
-    <!-- In-game HUD -->
-    <div id="hud" class="hidden" aria-hidden="true">
-      <div class="hud-top">
-        <div class="hud-left">
-          <div class="hud-score"><span id="score">0</span></div>
-          <div class="hud-hearts" id="hearts">❤❤❤</div>
-        </div>
-        <div class="hud-center">
-          <div class="level-label" id="level-label">Level 1/4 · Kishkindha Forest</div>
-          <div class="progress">
-            <div class="progress-fill" id="progress-fill"></div>
-            <span class="progress-goal">🙏</span>
-          </div>
-          <div class="dist-label"><span id="distance">0</span> m</div>
-        </div>
-        <div class="hud-right">
-          <div class="hud-rings">💍 <span id="rings">0</span></div>
-          <div class="hud-buttons">
-            <button id="btn-mute" class="icon-btn" title="Sound">🔊</button>
-            <button id="btn-pause" class="icon-btn" title="Pause">⏸</button>
-          </div>
-        </div>
-      </div>
-      <div id="toast" class="toast"></div>
-      <div id="level-banner" class="level-banner"></div>
-      <div id="flight-meter" class="flight-meter">
-        <span class="flight-icon">🌀</span>
-        <div class="flight-bar"><div class="flight-fill" id="flight-fill"></div></div>
-        <span class="flight-text">FLIGHT</span>
-      </div>
-    </div>
-
-    <!-- Start screen -->
-    <div id="menu" class="overlay">
-      <div class="panel">
-        <div class="crest">🛕</div>
-        <h1>Hanuman's Journey</h1>
-        <p class="tag">Cross 4 levels of monsters and deliver Shri Ram's ring</p>
-        <button id="btn-start" class="primary">▶ Begin the Journey</button>
-        <div class="stages">
-          <span>🌳 Forest</span><span>🏖 Shore</span><span>🌊 Setu</span><span>🏰 Lanka</span><span>🙏 Ram</span>
-        </div>
-        <div class="controls">
-          <div class="ctl"><b>Swipe / Arrows</b><span>Left · Right to change lane</span></div>
-          <div class="ctl"><b>Swipe Up / ↑ / Tap</b><span>Jump snakes & logs</span></div>
-          <div class="ctl"><b>Swipe Down / ↓</b><span>Slide under bats & vines</span></div>
-        </div>
-        <div class="best">Best: <span id="best-menu">0</span> · ❤×3 per level</div>
-      </div>
-    </div>
-
-    <!-- Pause -->
-    <div id="pause" class="overlay hidden">
-      <div class="panel">
-        <h2>Paused</h2>
-        <button id="btn-resume" class="primary">Resume</button>
-        <button id="btn-quit" class="ghost">Quit to Menu</button>
-      </div>
-    </div>
-
-    <!-- Level complete -->
-    <div id="levelclear" class="overlay hidden">
-      <div class="panel">
-        <div class="crest">🚩</div>
-        <h2 id="lc-title">Level Complete!</h2>
-        <p id="lc-sub" class="tag"></p>
-        <button id="btn-next" class="primary">Next Level ▶</button>
-      </div>
-    </div>
-
-    <!-- Game over (fell) -->
-    <div id="over" class="overlay hidden">
-      <div class="panel">
-        <div class="crest">💔</div>
-        <h2 id="over-title">You Fell</h2>
-        <p id="over-sub" class="tag"></p>
-        <div class="results">
-          <div class="res"><span id="final-score">0</span><small>Score</small></div>
-          <div class="res"><span id="final-dist">0</span><small>Metres</small></div>
-          <div class="res"><span id="final-rings">0</span><small>Rings</small></div>
-        </div>
-        <button id="btn-retry" class="primary">Retry Level</button>
-        <button id="btn-menu" class="ghost">Menu</button>
-      </div>
-    </div>
-
-    <!-- Victory: reached Ram -->
-    <div id="victory" class="overlay hidden">
-      <div class="panel">
-        <div class="crest">🙏</div>
-        <h2>Jai Shri Ram!</h2>
-        <p class="tag">Hanuman delivered the ring to Shri Ram.</p>
-        <div class="results">
-          <div class="res"><span id="v-score">0</span><small>Score</small></div>
-          <div class="res"><span id="v-rings">0</span><small>Rings</small></div>
-          <div class="res"><span id="v-coins">0</span><small>Laddus</small></div>
-        </div>
-        <div id="v-best" class="new-best hidden">✨ New Best!</div>
-        <button id="btn-play-again" class="primary">Play Again</button>
-        <button id="btn-victory-menu" class="ghost">Menu</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="js/utils.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/input.js"></script>
-  <script src="js/particles.js"></script>
-  <script src="js/world.js"></script>
-  <script src="js/player.js"></script>
-  <script src="js/obstacles.js"></script>
-  <script src="js/game.js"></script>
-</body>
-</html>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="manifest" href="manifest.json"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="css/styles.css">
+</head><body><div id="app"><canvas id="game" aria-label="Hanuman's Journey game canvas"></canvas>
+  <div id="hud" class="hidden" aria-hidden="true"><div class="hud-top">
+    <div class="hud-card hud-left"><span class="hud-caption">SCORE</span><strong id="score">0</strong><div id="hearts" class="hud-hearts">♥♥♥</div></div>
+    <div class="hud-center"><div class="level-label" id="level-label">LEG I · KISHKINDHA FOREST</div><div class="progress"><div class="progress-fill" id="progress-fill"></div><span class="progress-marker">◆</span></div><div class="dist-label"><span id="distance">0</span> m travelled</div></div>
+    <div class="hud-card hud-right"><span class="hud-caption">SACRED RINGS</span><strong>◉ <span id="rings">0</span></strong><div class="hud-buttons"><button id="btn-mute" class="icon-btn" title="Sound">🔊</button><button id="btn-pause" class="icon-btn" title="Pause">Ⅱ</button></div></div>
+  </div><div id="toast" class="toast"></div><div id="level-banner" class="level-banner"></div><div id="flight-meter" class="flight-meter"><span class="flight-icon">✦</span><div class="flight-bar"><div class="flight-fill" id="flight-fill"></div></div><span class="flight-text">DIVINE FLIGHT</span></div></div>
+  <div id="menu" class="overlay menu-overlay"><div class="menu-vignette"></div><div class="panel menu-panel">
+    <div class="eyebrow"><span></span> AN EPIC RUNNER <span></span></div><h1><small>HANUMAN'S</small> JOURNEY</h1><div class="title-rule"><i></i><b>◆</b><i></i></div>
+    <p class="tag">Carry Shri Ram's sacred ring across the sea<br>and brave the shadows of Lanka.</p><button id="btn-start" class="primary"><span>BEGIN THE JOURNEY</span><b>→</b></button>
+    <div class="journey-path" aria-label="Journey stages"><span class="active"><i>01</i>Kishkindha</span><b></b><span><i>02</i>Shore</span><b></b><span><i>03</i>Ram Setu</span><b></b><span><i>04</i>Lanka</span></div>
+    <div class="controls"><div class="ctl"><kbd>← →</kbd><span><b>MOVE</b>Change lane</span></div><div class="ctl"><kbd>↑</kbd><span><b>LEAP</b>Clear danger</span></div><div class="ctl"><kbd>↓</kbd><span><b>SLIDE</b>Duck below</span></div></div><div class="best">PERSONAL BEST <span id="best-menu">0</span></div>
+  </div><div class="menu-footer">A JOURNEY OF COURAGE, DEVOTION &amp; STRENGTH</div></div>
+  <div id="pause" class="overlay hidden"><div class="panel"><div class="crest">ॐ</div><p class="eyebrow">THE JOURNEY RESTS</p><h2>Paused</h2><button id="btn-resume" class="primary">RESUME <b>→</b></button><button id="btn-quit" class="ghost">Return to Menu</button></div></div>
+  <div id="levelclear" class="overlay hidden"><div class="panel"><div class="crest">✦</div><p class="eyebrow">PATH CLEARED</p><h2 id="lc-title">Level Complete</h2><p id="lc-sub" class="tag"></p><button id="btn-next" class="primary">CONTINUE <b>→</b></button></div></div>
+  <div id="over" class="overlay hidden"><div class="panel"><div class="crest">ॐ</div><p class="eyebrow">RISE ONCE MORE</p><h2 id="over-title">The Journey Pauses</h2><p id="over-sub" class="tag"></p><div class="results"><div class="res"><span id="final-score">0</span><small>Score</small></div><div class="res"><span id="final-dist">0</span><small>Metres</small></div><div class="res"><span id="final-rings">0</span><small>Rings</small></div></div><button id="btn-retry" class="primary">RUN AGAIN <b>↻</b></button><button id="btn-menu" class="ghost">Menu</button></div></div>
+  <div id="victory" class="overlay hidden"><div class="panel"><div class="crest">✦</div><p class="eyebrow">THE VOW FULFILLED</p><h2>Jai Shri Ram!</h2><p class="tag">Hanuman delivered the sacred ring.</p><div class="results"><div class="res"><span id="v-score">0</span><small>Score</small></div><div class="res"><span id="v-rings">0</span><small>Rings</small></div><div class="res"><span id="v-coins">0</span><small>Laddus</small></div></div><div id="v-best" class="new-best hidden">✦ NEW BEST ✦</div><button id="btn-play-again" class="primary">JOURNEY AGAIN</button><button id="btn-victory-menu" class="ghost">Menu</button></div></div>
+</div><script src="js/utils.js"></script><script src="js/storage.js"></script><script src="js/audio.js"></script><script src="js/input.js"></script><script src="js/particles.js"></script><script src="js/world.js"></script><script src="js/player.js"></script><script src="js/obstacles.js"></script><script src="js/game.js"></script></body></html>

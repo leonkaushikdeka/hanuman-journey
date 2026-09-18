@@ -2,7 +2,7 @@
 
 An endless lane runner (Temple Run / Subway Surfers style) where **Hanuman carries Shri Ram's ring across the Setu to Lanka**. Dodge boulders and rakshasas, jump over logs, slide under temple arches, and collect laddus and sacred rings.
 
-Pure HTML5 Canvas + vanilla JavaScript — **no build step, no dependencies**. Runs on desktop and mobile, and installs as a PWA.
+Pure HTML5 Canvas + vanilla JavaScript — **no build step, no runtime dependencies**. The remastered edition adds cinematic key art, a responsive mythic UI, richer biome lighting, textured perspective roads, stronger character silhouettes, and a mobile-first HUD. It runs on desktop and mobile and installs as a PWA.
 
 ## Controls
 
@@ -43,6 +43,7 @@ python -m http.server 8000
 ## Project layout
 
 ```
+assets/             # optimized presentation art
 index.html          # markup + overlays (menu / pause / game over)
 css/styles.css      # responsive UI + theme
 js/utils.js         # config + helpers

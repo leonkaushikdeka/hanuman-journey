@@ -1,10 +1,11 @@
 /* Offline-first service worker. Cache-first for app shell. */
-const CACHE = "hanuman-run-v3";
+const CACHE = "hanuman-run-remaster-v1";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon.svg",
+  "./assets/hanuman-hero.png",
   "./css/styles.css",
   "./js/utils.js",
   "./js/storage.js",

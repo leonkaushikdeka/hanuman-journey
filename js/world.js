@@ -5,18 +5,10 @@ const World = (() => {
   let L = { w: 0, h: 0, horizonY: 0, groundY: 0, cx: 0, spread: 0 };
 
   const PAL = {
-    jungle: { skyTop: "#3f9bd6", skyMid: "#a9dcf0", skyLow: "#d7f0e6", sun: "#fff6d0",
-      hill1: "#3f7d3f", hill2: "#57a052", tree: "#2f5d33", ground: "#6fae55",
-      track: "#8a5a2e", trackEdge: "#5c3d1e", dash: "rgba(255,246,220,0.6)" },
-    coast: { skyTop: "#ff9e57", skyMid: "#ffd39a", skyLow: "#fff0d6", sun: "#fff2c0",
-      hill1: "#d99a52", hill2: "#f0c583", sea: "#2f96ad", ground: "#e8c98a",
-      track: "#d7b46f", trackEdge: "#b48a4e", dash: "rgba(110,70,30,0.5)" },
-    sea: { skyTop: "#5cb2ec", skyMid: "#bfe3ff", skyLow: "#eaf6ff", sun: "#fffbe0",
-      seaDeep: "#1c5686", seaLight: "#54a8cf", ground: "#2b7aa8",
-      track: "#b9bec6", trackEdge: "#7c848d", dash: "rgba(255,228,140,0.7)" },
-    lanka: { skyTop: "#241040", skyMid: "#6a2352", skyLow: "#c24a3a", sun: "#ff6a3a",
-      hill1: "#1a0f2e", hill2: "#341a3e", city: "#100a1e", win: "#ffcf6a", ground: "#241826",
-      track: "#3a2a2e", trackEdge: "#180f16", dash: "rgba(255,200,110,0.6)" },
+    jungle: { skyTop: "#071d24", skyMid: "#467d72", skyLow: "#d3b777", sun: "#ffd88a", hill1: "#153a35", hill2: "#285348", tree: "#0d2926", ground: "#17372d", track: "#76502e", trackEdge: "#25180f", dash: "rgba(255,214,138,.48)" },
+    coast: { skyTop: "#17364a", skyMid: "#d17c54", skyLow: "#ffd69b", sun: "#fff0b3", hill1: "#583c31", hill2: "#9e6847", sea: "#246b78", ground: "#66543a", track: "#b38a55", trackEdge: "#513a24", dash: "rgba(255,225,161,.5)" },
+    sea: { skyTop: "#102d48", skyMid: "#4e91aa", skyLow: "#d5d7be", sun: "#fff0a8", seaDeep: "#092f4b", seaLight: "#2e7c91", ground: "#174f68", track: "#8d8d82", trackEdge: "#343a3d", dash: "rgba(255,209,103,.72)" },
+    lanka: { skyTop: "#100b24", skyMid: "#4c1830", skyLow: "#b4432f", sun: "#ff7742", hill1: "#160c21", hill2: "#2a1226", city: "#090712", win: "#ffc55d", ground: "#171018", track: "#34262a", trackEdge: "#100a0d", dash: "rgba(255,180,90,.5)" },
   };
 
   function resize(w, h) {
@@ -44,6 +36,8 @@ const World = (() => {
     ctx.fillStyle = hb; ctx.fillRect(0, L.horizonY - L.h * 0.14, L.w, L.h * 0.15);
 
     celestial(ctx, biome, P, time);
+    ctx.fillStyle = biome === "lanka" ? "rgba(255,83,45,.08)" : "rgba(255,219,151,.10)";
+    for (let i = 0; i < 3; i++) ctx.fillRect(0, L.horizonY - 18 + i * 10, L.w, 2);
 
     if (biome === "jungle") {
       hills(ctx, P.hill1, 0.11, time * 3, 0.6);
@@ -62,7 +56,14 @@ const World = (() => {
     }
 
     if (biome === "sea") ocean(ctx, P, time);
-    else { ctx.fillStyle = P.ground; ctx.fillRect(0, L.horizonY, L.w, L.h - L.horizonY); }
+    else {
+      const land = ctx.createLinearGradient(0, L.horizonY, 0, L.h);
+      land.addColorStop(0, P.ground); land.addColorStop(1, mixHex(P.ground, "#050403", .48));
+      ctx.fillStyle = land; ctx.fillRect(0, L.horizonY, L.w, L.h - L.horizonY);
+    }
+    const edge = ctx.createRadialGradient(L.cx, L.h * .42, L.w * .12, L.cx, L.h * .48, L.w * .78);
+    edge.addColorStop(0, "rgba(255,210,130,.035)"); edge.addColorStop(.58, "rgba(0,0,0,0)"); edge.addColorStop(1, "rgba(0,0,0,.46)");
+    ctx.fillStyle = edge; ctx.fillRect(0, 0, L.w, L.h);
   }
 
   function celestial(ctx, biome, P, time) {
@@ -198,10 +199,26 @@ const World = (() => {
     ctx.lineTo(nearR, nearY); ctx.lineTo(nearL, nearY);
     ctx.closePath(); ctx.fill();
 
+    const step = 2.35, phase = scrollZ % step;
+    for (let z = CFG.zFar; z > -.5; z -= step) {
+      const zz = z - phase;
+      if (zz < -.7) continue;
+      const y = projY(zz), sc = scaleAtZ(zz);
+      const left = laneX(-1.46, zz), right = laneX(1.46, zz);
+      ctx.strokeStyle = biome === "sea" ? `rgba(35,39,40,${.32 * sc + .08})` : `rgba(32,19,10,${.30 * sc + .06})`;
+      ctx.lineWidth = Math.max(1, 5 * sc); ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke();
+      if (sc > .34) {
+        ctx.strokeStyle = biome === "lanka" ? "rgba(235,120,66,.16)" : "rgba(255,218,151,.12)";
+        for (const lane of [-1,0,1]) { const x = laneX(lane, zz); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 7 * sc, y - 10 * sc); ctx.stroke(); }
+      }
+    }
+
     // rails
     ctx.strokeStyle = biome === "sea" ? "#ffd15c" : P.trackEdge;
-    ctx.lineWidth = biome === "sea" ? 4 : 2;
+    ctx.shadowBlur = biome === "sea" ? 10 : 0; ctx.shadowColor = "rgba(255,194,74,.55)";
+    ctx.lineWidth = biome === "sea" ? 5 : 3;
     railLine(ctx, -1.5); railLine(ctx, 1.5);
+    ctx.shadowBlur = 0;
 
     // lane dashes
     ctx.strokeStyle = P.dash;

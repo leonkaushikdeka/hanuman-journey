@@ -134,7 +134,7 @@ const Game = (() => {
     Player.setInvincible(CFG.iFrames);
     updateHearts();
     if (hearts <= 0) endRun();
-    else toast(hearts === 1 ? "Last heart!" : "-1 ❤");
+    else toast(hearts === 1 ? "Last heart!" : "−1 ♥");
   }
 
   function endRun() {
@@ -142,8 +142,8 @@ const Game = (() => {
     Sound.stopMusic();
     score = computeScore();
     if (score > best) { best = score; Store.setBest(best); }
-    el.overTitle.textContent = "You Fell";
-    el.overSub.textContent = `${LEVELS[levelIndex].name} — Level ${levelIndex + 1} of 4`;
+    el.overTitle.textContent = "The Journey Pauses";
+    el.overSub.textContent = `${LEVELS[levelIndex].name} — Leg ${levelIndex + 1} of 4`;
     el.finalScore.textContent = score;
     el.finalDist.textContent = Math.floor(displayDist());
     el.finalRings.textContent = rings;
@@ -162,12 +162,12 @@ const Game = (() => {
     Player.startFlight(CFG.flightDur);
     Player.setInvincible(0);
     Sound.fly();
-    toast("✨ Divine Flight!");
+    toast("✦ Divine Flight!");
   }
 
   function updateHearts() {
     let h = "";
-    for (let i = 0; i < CFG.hearts; i++) h += i < hearts ? "❤" : "🖤";
+    for (let i = 0; i < CFG.hearts; i++) h += i < hearts ? "♥" : "♡";
     el.hearts.textContent = h;
   }
   function updateHud() {
@@ -175,7 +175,7 @@ const Game = (() => {
     el.score.textContent = score;
     el.distance.textContent = Math.floor(displayDist());
     el.rings.textContent = rings;
-    el.levelLabel.textContent = `Level ${levelIndex + 1}/4 · ${LEVELS[levelIndex].name}`;
+    el.levelLabel.textContent = `LEG ${levelIndex + 1} / 4 · ${LEVELS[levelIndex].name.toUpperCase()}`;
     el.progressFill.style.width = clamp(levelDist / LEVELS[levelIndex].goal, 0, 1) * 100 + "%";
     updateHearts();
     updateFlightMeter();
@@ -260,6 +260,10 @@ const Game = (() => {
     if (state === "playing" || state === "paused") Obstacles.draw(ctx);
     Player.draw(ctx);
     Particles.draw(ctx);
+    const L = World.layout();
+    const shade = ctx.createLinearGradient(0, L.h * .72, 0, L.h);
+    shade.addColorStop(0, "rgba(0,0,0,0)"); shade.addColorStop(1, "rgba(3,2,1,.34)");
+    ctx.fillStyle = shade; ctx.fillRect(0, L.h * .7, L.w, L.h * .3);
   }
 
   // ---------- input ----------
