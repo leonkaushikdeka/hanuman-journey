@@ -2,7 +2,7 @@
 
 An endless lane runner (Temple Run / Subway Surfers style) where **Hanuman carries Shri Ram's ring across the Setu to Lanka**. Dodge boulders and rakshasas, jump over logs, slide under temple arches, and collect laddus and sacred rings.
 
-Pure HTML5 Canvas + vanilla JavaScript — **no build step, no runtime dependencies**. The remastered edition adds cinematic key art, a responsive mythic UI, richer biome lighting, textured perspective roads, stronger character silhouettes, and a mobile-first HUD. It runs on desktop and mobile and installs as a PWA.
+Pure HTML5 Canvas + vanilla JavaScript — **no build step, no runtime dependencies**. The remastered edition adds cinematic key art, four hand-painted biome environments, a detailed in-game Hanuman sprite, textured perspective roads, a responsive mythic UI, and a mobile-first HUD. It runs on desktop and mobile and installs as a PWA.
 
 ## Controls
 

@@ -31,6 +31,9 @@ const Obstacles = (() => {
   }
 
   function spawnScenery(biome) {
+    // The remastered biome plates already contain dense, perspective-correct scenery.
+    // Keep the old procedural decorations only as a fallback while a plate is loading.
+    if (World.backgroundReady && World.backgroundReady(biome)) return;
     const side = choice([-2.3, -3.1, 2.3, 3.1]);
     let kind = "tree";
     if (biome === "jungle") kind = choice(["tree", "tree", "bush", "rockdeco"]);

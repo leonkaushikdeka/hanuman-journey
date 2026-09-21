@@ -4,6 +4,14 @@
 const World = (() => {
   let L = { w: 0, h: 0, horizonY: 0, groundY: 0, cx: 0, spread: 0 };
 
+  const BG_IMAGES = {};
+  for (const biome of ["jungle", "coast", "sea", "lanka"]) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = `assets/biome-${biome}-v2.jpg?v=2`;
+    BG_IMAGES[biome] = img;
+  }
+
   const PAL = {
     jungle: { skyTop: "#071d24", skyMid: "#467d72", skyLow: "#d3b777", sun: "#ffd88a", hill1: "#153a35", hill2: "#285348", tree: "#0d2926", ground: "#17372d", track: "#76502e", trackEdge: "#25180f", dash: "rgba(255,214,138,.48)" },
     coast: { skyTop: "#17364a", skyMid: "#d17c54", skyLow: "#ffd69b", sun: "#fff0b3", hill1: "#583c31", hill2: "#9e6847", sea: "#246b78", ground: "#66543a", track: "#b38a55", trackEdge: "#513a24", dash: "rgba(255,225,161,.5)" },
@@ -27,6 +35,11 @@ const World = (() => {
   // ---------------- background ----------------
   function drawBackground(ctx, biome, time) {
     const P = PAL[biome] || PAL.jungle;
+    const plate = BG_IMAGES[biome];
+    if (plate && plate.complete && plate.naturalWidth) {
+      drawPlate(ctx, plate, time, biome);
+      return;
+    }
     const g = ctx.createLinearGradient(0, 0, 0, L.horizonY + 20);
     g.addColorStop(0, P.skyTop); g.addColorStop(1, P.skyMid);
     ctx.fillStyle = g; ctx.fillRect(0, 0, L.w, L.horizonY + 20);
@@ -64,6 +77,24 @@ const World = (() => {
     const edge = ctx.createRadialGradient(L.cx, L.h * .42, L.w * .12, L.cx, L.h * .48, L.w * .78);
     edge.addColorStop(0, "rgba(255,210,130,.035)"); edge.addColorStop(.58, "rgba(0,0,0,0)"); edge.addColorStop(1, "rgba(0,0,0,.46)");
     ctx.fillStyle = edge; ctx.fillRect(0, 0, L.w, L.h);
+  }
+
+  function drawPlate(ctx, img, time, biome) {
+    const drift = Math.sin(time * .055) * L.w * .008;
+    const scale = Math.max(L.w / img.naturalWidth, L.h / img.naturalHeight) * 1.025;
+    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale;
+    ctx.drawImage(img, (L.w - dw) / 2 + drift, (L.h - dh) / 2, dw, dh);
+
+    // Animated distance haze binds the still plate to the moving canvas world.
+    const haze = ctx.createLinearGradient(0, L.horizonY * .55, 0, L.horizonY * 1.35);
+    haze.addColorStop(0, "rgba(255,226,174,0)");
+    haze.addColorStop(.62, biome === "lanka" ? "rgba(190,49,30,.07)" : "rgba(220,235,218,.10)");
+    haze.addColorStop(1, "rgba(3,8,8,0)");
+    ctx.fillStyle = haze; ctx.fillRect(0, 0, L.w, L.horizonY * 1.5);
+
+    const vignette = ctx.createRadialGradient(L.cx, L.h * .46, L.w * .14, L.cx, L.h * .5, L.w * .72);
+    vignette.addColorStop(.42, "rgba(0,0,0,0)"); vignette.addColorStop(1, "rgba(2,3,3,.38)");
+    ctx.fillStyle = vignette; ctx.fillRect(0, 0, L.w, L.h);
   }
 
   function celestial(ctx, biome, P, time) {
@@ -192,12 +223,19 @@ const World = (() => {
     const nearY = projY(0), farY = projY(CFG.zFar);
 
     const grad = ctx.createLinearGradient(0, farY, 0, nearY);
-    grad.addColorStop(0, P.trackEdge); grad.addColorStop(1, P.track);
+    grad.addColorStop(0, biome === "sea" ? "rgba(58,65,66,.78)" : "rgba(31,21,15,.70)");
+    grad.addColorStop(.55, biome === "sea" ? "rgba(105,105,98,.88)" : "rgba(79,52,31,.86)");
+    grad.addColorStop(1, biome === "lanka" ? "rgba(48,31,32,.94)" : biome === "sea" ? "rgba(118,116,105,.95)" : "rgba(91,58,34,.94)");
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(farL, farY); ctx.lineTo(farR, farY);
     ctx.lineTo(nearR, nearY); ctx.lineTo(nearL, nearY);
     ctx.closePath(); ctx.fill();
+
+    // Soft shoulders separate the playable path from the cinematic plate.
+    ctx.save(); ctx.strokeStyle = biome === "sea" ? "rgba(255,194,69,.48)" : "rgba(236,175,83,.24)";
+    ctx.lineWidth = Math.max(2, L.w * .004); ctx.shadowBlur = 16; ctx.shadowColor = ctx.strokeStyle;
+    railLine(ctx, -1.5); railLine(ctx, 1.5); ctx.restore();
 
     const step = 2.35, phase = scrollZ % step;
     for (let z = CFG.zFar; z > -.5; z -= step) {
@@ -210,6 +248,25 @@ const World = (() => {
       if (sc > .34) {
         ctx.strokeStyle = biome === "lanka" ? "rgba(235,120,66,.16)" : "rgba(255,218,151,.12)";
         for (const lane of [-1,0,1]) { const x = laneX(lane, zz); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 7 * sc, y - 10 * sc); ctx.stroke(); }
+      }
+
+      // Stable grit and shoulder stones move with the road instead of flickering.
+      if (sc > .2) {
+        for (let i = 0; i < 4; i++) {
+          const seed = Math.abs(Math.sin(z * 19.17 + i * 41.3));
+          const lane = -1.25 + seed * 2.5;
+          const px = laneX(lane, zz), py = y - (3 + i * 2) * sc;
+          ctx.fillStyle = biome === "sea" ? "rgba(39,45,48,.24)" : "rgba(29,18,11,.20)";
+          ctx.beginPath(); ctx.ellipse(px, py, (3 + seed * 7) * sc, (1.5 + seed * 3) * sc, seed * 2, 0, Math.PI * 2); ctx.fill();
+        }
+        for (const side of [-1, 1]) {
+          const ex = laneX(side * 1.53, zz);
+          const ew = Math.max(2, 15 * sc), eh = Math.max(1, 7 * sc);
+          const stone = ctx.createLinearGradient(ex, y - eh, ex, y + eh);
+          stone.addColorStop(0, biome === "sea" ? "rgba(210,205,178,.72)" : "rgba(145,103,63,.62)");
+          stone.addColorStop(1, "rgba(30,22,18,.78)");
+          ctx.fillStyle = stone; ctx.beginPath(); ctx.ellipse(ex, y, ew, eh, 0, 0, Math.PI * 2); ctx.fill();
+        }
       }
     }
 
@@ -391,5 +448,8 @@ const World = (() => {
     ctx.restore();
   }
 
-  return { resize, layout, scaleAtZ, projY, laneX, drawBackground, drawTrack, drawRamScene };
+  return {
+    resize, layout, scaleAtZ, projY, laneX, drawBackground, drawTrack, drawRamScene,
+    backgroundReady: (biome) => Boolean(BG_IMAGES[biome]?.naturalWidth),
+  };
 })();

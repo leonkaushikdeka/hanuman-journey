@@ -2,6 +2,9 @@
    jump-tuck, slide-squash, running dust and post-hit invincibility. */
 
 const Player = (() => {
+  const runnerSprite = new Image();
+  runnerSprite.decoding = "async";
+  runnerSprite.src = "assets/hanuman-runner-v2.png?v=2";
   const s = {
     laneTarget: 0, laneFloat: 0,
     yFrac: 0, vy: 0, airborne: false,
@@ -72,6 +75,11 @@ const Player = (() => {
     ctx.ellipse(x, L.groundY + L.h * 0.008, L.h * 0.09 * (1 - airLift * 0.4), L.h * 0.028, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+
+    if (runnerSprite.complete && runnerSprite.naturalWidth) {
+      drawRunnerSprite(ctx, L, x, feetY, airLift);
+      return;
+    }
 
     if (s.flyPose) { drawFlying(ctx, L, x, feetY); return; }
 
@@ -182,6 +190,30 @@ const Player = (() => {
     ctx.fillStyle = "#ff4d6d";
     ctx.beginPath(); ctx.arc(0, cyTop - headR * 0.2, headR * 0.16, 0, Math.PI * 2); ctx.fill();
 
+    ctx.restore();
+  }
+
+  function drawRunnerSprite(ctx, L, x, feetY, airLift) {
+    const run = Math.sin(s.runPhase);
+    const bounce = s.airborne ? 0 : Math.abs(Math.cos(s.runPhase)) * L.h * .008;
+    const laneLean = clamp((s.laneTarget - s.laneFloat) * .16, -.12, .12);
+    const h = L.h * (s.flyPose ? .38 : .36);
+    const w = h * (runnerSprite.naturalWidth / runnerSprite.naturalHeight);
+
+    ctx.save();
+    ctx.translate(x, feetY - bounce);
+    ctx.rotate((s.flyPose ? -.18 : run * .018) + laneLean);
+    if (s.sliding) ctx.scale(1.13, .58);
+    if (s.inv > 0 && Math.floor(s.inv * 12) % 2 === 0) ctx.globalAlpha = .34;
+
+    if (s.flyPose) {
+      const aura = ctx.createRadialGradient(0, -h * .48, 1, 0, -h * .48, h * .72);
+      aura.addColorStop(0, "rgba(255,232,147,.45)"); aura.addColorStop(.45, "rgba(92,196,255,.18)"); aura.addColorStop(1, "rgba(92,196,255,0)");
+      ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(0, -h * .48, h * .72, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.shadowColor = "rgba(0,0,0,.68)"; ctx.shadowBlur = L.h * .018; ctx.shadowOffsetY = L.h * .008;
+    ctx.drawImage(runnerSprite, -w * .54, -h, w, h);
     ctx.restore();
   }
 
@@ -299,5 +331,6 @@ const Player = (() => {
     get invincible() { return s.inv > 0; },
     get flying() { return s.flying; },
     get flightRemaining() { return Math.max(0, s.flightT); },
+    get spriteReady() { return Boolean(runnerSprite.naturalWidth); },
   };
 })();
