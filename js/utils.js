@@ -40,32 +40,26 @@ const CFG = {
 const LEVELS = [
   {
     name: "Kishkindha Forest", biome: "jungle", goal: 420, speed: 8.5, obstProb: 0.22,
-    // gentle intro: mostly jump/slide, a single lane-blocker, no monsters that force a dodge
-    pool: ["log", "log", "snake", "vine", "rock"],
+    // Every lane threat is an Asura: touching one begins a quick 1v1 clash.
+    pool: ["asura"],
   },
   {
     name: "The Southern Shore", biome: "coast", goal: 620, speed: 11, obstProb: 0.42,
-    pool: ["log", "rock", "snake", "bat", "vine", "rakshasa"],
+    pool: ["asura"],
   },
   {
     name: "Ram Setu Bridge", biome: "sea", goal: 780, speed: 12.5, obstProb: 0.46,
-    pool: ["rock", "snake", "bat", "vine", "rakshasa"],
+    pool: ["asura"],
   },
   {
     name: "Lanka", biome: "lanka", goal: 950, speed: 14, obstProb: 0.5,
-    pool: ["rock", "bat", "vine", "rakshasa", "demon"],
+    pool: ["asura"],
   },
 ];
 
 // gameplay category for each obstacle/monster kind
 const KIND = {
-  log:      { cat: "jump" },   // hop over
-  snake:    { cat: "jump" },   // hop over (monster)
-  rock:     { cat: "lane" },   // change lane
-  rakshasa: { cat: "lane" },   // change lane (monster)
-  demon:    { cat: "lane" },   // change lane (big monster)
-  vine:     { cat: "slide" },  // slide under
-  bat:      { cat: "slide" },  // slide under (flying monster)
+  asura:    { cat: "fight" },  // collision begins a rapid-tap 1v1
   coin:     { cat: "coin" },
   ring:     { cat: "ring" },
   flight:   { cat: "flight" }, // Divine Flight power-up

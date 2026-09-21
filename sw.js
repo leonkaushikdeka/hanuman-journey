@@ -1,11 +1,12 @@
 /* Offline-first service worker. Cache-first for app shell. */
-const CACHE = "hanuman-run-duel-v1";
+const CACHE = "hanuman-run-asura-v1";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon.svg",
   "./assets/hanuman-hero.png",
+  "./assets/asura-warrior-v1.png",
   "./assets/hanuman-runner-v2.png",
   "./assets/biome-jungle-v2.jpg",
   "./assets/biome-coast-v2.jpg",

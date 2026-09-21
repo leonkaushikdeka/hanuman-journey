@@ -5,10 +5,15 @@
 const Obstacles = (() => {
   let list = [];
   let spawnCarry = 0, sceneCarry = 0, lastRingM = 0, lastFlightM = 0, t = 0;
+  const asuraArt = new Image();
+  asuraArt.decoding = "async";
+  asuraArt.src = "assets/asura-warrior-v1.png?v=1";
 
   function reset() { list = []; spawnCarry = 0; sceneCarry = 0; lastRingM = 0; lastFlightM = 0; t = 0; }
 
-  function push(kind, lane) { list.push({ kind, lane, z: CFG.zFar, passed: false, deco: false, seed: Math.random() }); }
+  function push(kind, lane) {
+    list.push({ kind, lane, z: CFG.zFar, passed: false, deco: false, seed: Math.random(), variant: randInt(0, 3) });
+  }
 
   function spawnRow(cfg) {
     const lanes = [-1, 0, 1];
@@ -46,9 +51,14 @@ const Obstacles = (() => {
   function update(dt, speed, cfg) {
     t += dt;
     const dz = speed * dt;
+    let fightStarted = false;
     for (const o of list) {
       o.z -= dz;
-      if (!o.deco && !o.passed && o.z <= CFG.zResolve) { o.passed = true; resolve(o); }
+      if (!o.deco && !o.passed && o.z <= CFG.zResolve) {
+        o.passed = true;
+        fightStarted = resolve(o) || fightStarted;
+        if (fightStarted) break;
+      }
     }
     list = list.filter((o) => o.z > CFG.zGone && !o.gone);
 
@@ -60,6 +70,7 @@ const Obstacles = (() => {
     }
     sceneCarry += dz;
     while (sceneCarry >= 2.1) { sceneCarry -= 2.1; if (chance(0.9)) spawnScenery(cfg.biome); }
+    return fightStarted;
   }
 
   function resolve(o) {
@@ -71,9 +82,10 @@ const Obstacles = (() => {
     if (cat === "flight") { if (Player.flying || laneMatch) { o.gone = true; Game.activateFlight(); } return; }
     if (!laneMatch) return;
     if (Player.invincible || Player.flying) return; // soaring over all danger
-    if (cat === "jump") { if (!Player.airborne) Game.onHit(); return; }
-    if (cat === "slide") { if (!Player.sliding) Game.onHit(); return; }
-    if (cat === "lane") { Game.onHit(); return; }
+    if (cat === "fight") {
+      o.gone = true;
+      return Game.beginAsuraClash(o.variant);
+    }
   }
 
   // ---------------- drawing ----------------
@@ -95,10 +107,7 @@ const Obstacles = (() => {
         case "log": drawLog(ctx, cx, baseY, unit, w); break;
         case "vine": drawVine(ctx, cx, baseY, unit, w); break;
         case "rock": drawRock(ctx, cx, baseY, unit, w); break;
-        case "snake": drawSnake(ctx, cx, baseY, unit, w); break;
-        case "bat": drawBat(ctx, cx, baseY, unit, w); break;
-        case "rakshasa": drawRakshasa(ctx, cx, baseY, unit, w); break;
-        case "demon": drawDemon(ctx, cx, baseY, unit, w); break;
+        case "asura": drawAsura(ctx, cx, baseY, unit, w, o.variant); break;
         case "tree": drawTree(ctx, cx, baseY, unit, o.seed); break;
         case "bush": drawBush(ctx, cx, baseY, unit, o.seed); break;
         case "palm": drawPalm(ctx, cx, baseY, unit, o.seed); break;
@@ -226,28 +235,47 @@ const Obstacles = (() => {
   }
 
   // ---- monsters ----
-  function drawSnake(ctx, cx, baseY, unit, w) {
-    shadow(ctx, cx, baseY, w * 0.5);
-    const wig = Math.sin(t * 6 + cx) * unit * 0.02;
-    ctx.strokeStyle = "#3f9a4a"; ctx.lineWidth = unit * 0.05; ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx - w * 0.4, baseY);
-    ctx.quadraticCurveTo(cx - w * 0.1 + wig, baseY - unit * 0.05, cx + w * 0.1 - wig, baseY - unit * 0.02);
-    ctx.quadraticCurveTo(cx + w * 0.3 + wig, baseY, cx + w * 0.2, baseY - unit * 0.08);
-    ctx.stroke();
-    // pattern
-    ctx.strokeStyle = "#2b6d34"; ctx.lineWidth = unit * 0.012;
-    ctx.beginPath(); ctx.moveTo(cx - w * 0.3, baseY - unit * 0.01); ctx.lineTo(cx - w * 0.1, baseY - unit * 0.03); ctx.stroke();
-    // raised head
-    const hx = cx + w * 0.2, hy = baseY - unit * 0.1;
-    ctx.fillStyle = "#4faa55";
-    ctx.beginPath(); ctx.ellipse(hx, hy, unit * 0.045, unit * 0.032, -0.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#111"; ctx.beginPath(); ctx.arc(hx + unit * 0.02, hy - unit * 0.01, unit * 0.008, 0, Math.PI * 2); ctx.fill();
-    // tongue flick
-    if (Math.sin(t * 10 + cx) > 0.3) {
-      ctx.strokeStyle = "#e23"; ctx.lineWidth = unit * 0.006;
-      ctx.beginPath(); ctx.moveTo(hx + unit * 0.04, hy); ctx.lineTo(hx + unit * 0.08, hy - unit * 0.005); ctx.stroke();
+  function drawAsura(ctx, cx, baseY, unit, w, variant) {
+    if (asuraArt.complete && asuraArt.naturalWidth) {
+      const h = unit * .38, artW = h * (asuraArt.naturalWidth / asuraArt.naturalHeight);
+      shadow(ctx, cx, baseY, artW * .34);
+      ctx.save(); ctx.translate(0, Math.sin(t * 4 + cx) * unit * .008);
+      ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = h * .025; ctx.shadowOffsetY = h * .012;
+      ctx.drawImage(asuraArt, cx - artW * .5, baseY - h, artW, h);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(13,7,13,.82)"; rrect(ctx, cx - artW * .33, baseY - h * .29, artW * .66, h * .036, h * .015); ctx.fill();
+      ctx.fillStyle = ["#a366d4", "#bf615e", "#4c99c9", "#b24465"][variant % 4];
+      rrect(ctx, cx - artW * .29, baseY - h * .275, artW * .58, h * .012, h * .006); ctx.fill();
+      ctx.restore();
+      return;
     }
+    const palettes = [
+      ["#3f285b", "#a366d4", "#ffb14d"],
+      ["#52313a", "#bf615e", "#ffcc6c"],
+      ["#213f58", "#4c99c9", "#b9ebff"],
+      ["#4f1e37", "#b24465", "#ff755c"],
+    ];
+    const [body, trim, eye] = palettes[variant % palettes.length];
+    const h = unit * 0.31, top = baseY - h, bob = Math.sin(t * 4 + cx) * unit * .009;
+    shadow(ctx, cx, baseY, w * .54);
+    ctx.save(); ctx.translate(0, bob);
+    const aura = ctx.createRadialGradient(cx, top + h * .35, 2, cx, top + h * .35, h * .75);
+    aura.addColorStop(0, eye + "32"); aura.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = aura; ctx.beginPath(); ctx.arc(cx, top + h * .38, h * .75, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createLinearGradient(0, top, 0, baseY);
+    g.addColorStop(0, trim); g.addColorStop(.32, body); g.addColorStop(1, "#130c16");
+    ctx.fillStyle = g; rrect(ctx, cx - w * .34, top + h * .3, w * .68, h * .7, w * .12); ctx.fill();
+    ctx.fillStyle = "#1b111a"; rrect(ctx, cx - w * .42, baseY - h * .22, w * .2, h * .22, w * .06); ctx.fill(); rrect(ctx, cx + w * .22, baseY - h * .22, w * .2, h * .22, w * .06); ctx.fill();
+    ctx.strokeStyle = body; ctx.lineWidth = w * .13; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(cx - w * .29, top + h * .48); ctx.lineTo(cx - w * .47, top + h * .76); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + w * .29, top + h * .48); ctx.lineTo(cx + w * .47, top + h * .65); ctx.stroke();
+    ctx.fillStyle = trim; rrect(ctx, cx - w * .3, top + h * .67, w * .6, h * .08, h * .025); ctx.fill();
+    ctx.fillStyle = body; ctx.beginPath(); ctx.arc(cx, top + h * .22, h * .23, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#d7bc8a"; ctx.lineWidth = w * .055;
+    ctx.beginPath(); ctx.moveTo(cx - h * .13, top + h * .1); ctx.quadraticCurveTo(cx - h * .32, top - h * .08, cx - h * .27, top - h * .17); ctx.moveTo(cx + h * .13, top + h * .1); ctx.quadraticCurveTo(cx + h * .32, top - h * .08, cx + h * .27, top - h * .17); ctx.stroke();
+    ctx.fillStyle = eye; ctx.shadowColor = eye; ctx.shadowBlur = unit * .035;
+    ctx.beginPath(); ctx.arc(cx - h * .09, top + h * .22, h * .047, 0, Math.PI * 2); ctx.arc(cx + h * .09, top + h * .22, h * .047, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.restore();
   }
 
   function drawBat(ctx, cx, baseY, unit, w) {

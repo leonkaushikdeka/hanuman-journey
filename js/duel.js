@@ -4,19 +4,24 @@ const Duel = (() => {
   const sprite = new Image();
   sprite.decoding = "async";
   sprite.src = "assets/hanuman-runner-v2.png?v=2";
+  const asuraSprite = new Image();
+  asuraSprite.decoding = "async";
+  asuraSprite.src = "assets/asura-warrior-v1.png?v=1";
 
   const ENEMIES = [
-    { name: "Vana Rakshasa", subtitle: "Guardian of the forest", color: "#47622b", glow: "#bdea67" },
-    { name: "Shore Marauder", subtitle: "Terror of the southern shore", color: "#74442b", glow: "#ffb76a" },
-    { name: "Setu Breaker", subtitle: "Storm-born raider", color: "#315878", glow: "#8de1ff" },
-    { name: "Lanka Champion", subtitle: "Ravana's sworn blade", color: "#541a3a", glow: "#ff705f" },
+    { name: "Vana Asura", subtitle: "Forest gatekeeper", color: "#47622b", glow: "#bdea67" },
+    { name: "Tide Asura", subtitle: "Terror of the southern shore", color: "#74442b", glow: "#ffb76a" },
+    { name: "Setu Asura", subtitle: "Storm-born bridge raider", color: "#315878", glow: "#8de1ff" },
+    { name: "Lanka Asura", subtitle: "Ravana's sworn blade", color: "#541a3a", glow: "#ff705f" },
   ];
 
-  const s = { active: false, level: 0, hp: 12, maxHp: 12, guard: 3, enemyTimer: 1.45, entered: 0, strikeFx: 0, enemyFx: 0, combo: 0, comboT: 0, flash: 0, hitThisFrame: false, outcome: null };
+  const s = { active: false, level: 0, enemyIndex: 0, ambush: false, hp: 12, maxHp: 12, guard: 3, guardMax: 3, reward: 12, enemyTimer: 1.45, entered: 0, strikeFx: 0, enemyFx: 0, combo: 0, comboT: 0, flash: 0, hitThisFrame: false, outcome: null };
 
-  function start(level) {
-    s.active = true; s.level = level; s.maxHp = 11 + level * 2; s.hp = s.maxHp;
-    s.guard = 3; s.enemyTimer = 1.55; s.entered = .45; s.strikeFx = 0; s.enemyFx = 0;
+  function start(level, options = {}) {
+    s.active = true; s.level = level; s.enemyIndex = Number.isInteger(options.enemyIndex) ? options.enemyIndex : level;
+    s.ambush = Boolean(options.ambush); s.maxHp = (s.ambush ? 7 : 11) + level * 2; s.hp = s.maxHp;
+    s.guardMax = s.ambush ? 2 : 3; s.guard = s.guardMax; s.reward = s.ambush ? 5 : 12;
+    s.enemyTimer = s.ambush ? 1.72 : 1.55; s.entered = .45; s.strikeFx = 0; s.enemyFx = 0;
     s.combo = 0; s.comboT = 0; s.flash = 0; s.hitThisFrame = false; s.outcome = null;
   }
 
@@ -45,10 +50,10 @@ const Duel = (() => {
     return s.outcome;
   }
 
-  function snapshot() { const enemy = ENEMIES[s.level] || ENEMIES[0]; return { ...s, enemy, hpPct: s.hp / s.maxHp }; }
+  function snapshot() { const enemy = ENEMIES[s.enemyIndex % ENEMIES.length] || ENEMIES[0]; return { ...s, enemy, hpPct: s.hp / s.maxHp }; }
 
   function draw(ctx, time) {
-    const L = World.layout(), enemy = ENEMIES[s.level] || ENEMIES[0], u = Math.min(L.w, L.h);
+    const L = World.layout(), enemy = ENEMIES[s.enemyIndex % ENEMIES.length] || ENEMIES[0], u = Math.min(L.w, L.h);
     ctx.save();
     ctx.fillStyle = "rgba(5,5,7,.53)"; ctx.fillRect(0, 0, L.w, L.h);
     const light = ctx.createRadialGradient(L.cx, L.h * .55, u * .04, L.cx, L.h * .55, u * .58);
@@ -57,7 +62,7 @@ const Duel = (() => {
     ctx.strokeStyle = "rgba(246,200,95,.36)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(L.w * .08, L.h * .76); ctx.lineTo(L.w * .92, L.h * .76); ctx.stroke();
     const pulse = 1 + Math.sin(time * 4) * .025;
     drawHanuman(ctx, L, L.w * .32 + (s.enemyFx > 0 ? -u * .018 : s.strikeFx > 0 ? u * .018 : 0), L.h * .78, u * .32 * pulse);
-    drawEnemy(ctx, L, L.w * .68 + (s.strikeFx > 0 ? u * .018 : 0), L.h * .76, u * .29 * pulse, enemy);
+    drawEnemy(ctx, L, L.w * .69 + (s.strikeFx > 0 ? u * .018 : 0), L.h * .78, u * .5 * pulse, enemy);
     drawImpact(ctx, L, enemy); ctx.restore();
   }
 
@@ -73,6 +78,13 @@ const Duel = (() => {
     const w = h * .62, bob = Math.sin(performance.now() * .005) * h * .014;
     ctx.save(); ctx.translate(x, feetY + bob);
     ctx.fillStyle = "rgba(0,0,0,.54)"; ctx.beginPath(); ctx.ellipse(0, 0, w * .5, h * .065, 0, 0, Math.PI * 2); ctx.fill();
+    if (asuraSprite.complete && asuraSprite.naturalWidth) {
+      const artW = h * (asuraSprite.naturalWidth / asuraSprite.naturalHeight);
+      ctx.shadowColor = "rgba(0,0,0,.82)"; ctx.shadowBlur = h * .05; ctx.shadowOffsetY = h * .018;
+      ctx.drawImage(asuraSprite, -artW * .5, -h, artW, h);
+      ctx.restore();
+      return;
+    }
     const glow = ctx.createRadialGradient(0, -h * .58, 2, 0, -h * .58, h * .52); glow.addColorStop(0, enemy.glow + "66"); glow.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(0, -h * .58, h * .52, 0, Math.PI * 2); ctx.fill();
     const armor = ctx.createLinearGradient(0, -h * .76, 0, -h * .18); armor.addColorStop(0, enemy.color); armor.addColorStop(1, "#170d18"); ctx.fillStyle = armor; ctx.strokeStyle = "#170b13"; ctx.lineWidth = h * .018;
     ctx.beginPath(); ctx.moveTo(-w * .31, -h * .15); ctx.lineTo(-w * .38, -h * .57); ctx.quadraticCurveTo(0, -h * .83, w * .38, -h * .57); ctx.lineTo(w * .31, -h * .15); ctx.closePath(); ctx.fill(); ctx.stroke();

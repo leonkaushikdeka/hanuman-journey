@@ -45,6 +45,7 @@ const Game = (() => {
     flightMeter: document.getElementById("flight-meter"),
     flightFill: document.getElementById("flight-fill"),
     duelUi: document.getElementById("duel-ui"),
+    duelKicker: document.getElementById("duel-kicker"),
     duelName: document.getElementById("duel-name"),
     duelSubtitle: document.getElementById("duel-subtitle"),
     duelHealth: document.getElementById("duel-health-fill"),
@@ -166,13 +167,18 @@ const Game = (() => {
   function resume() { if (state === "paused") { last = performance.now(); state = "playing"; refreshOverlays(); } }
 
   // ---------- tap duel ----------
-  function beginDuel() {
-    duelSeen = true;
-    Duel.start(levelIndex);
+  function beginDuel(options = {}) {
+    if (state !== "playing") return false;
+    if (options.story) duelSeen = true;
+    Duel.start(levelIndex, options);
     state = "duel";
     updateDuelUi();
     refreshOverlays();
-    toast("1V1 encounter!");
+    return true;
+  }
+
+  function beginAsuraClash(enemyIndex) {
+    return beginDuel({ ambush: true, enemyIndex });
   }
 
   function strikeDuel() {
@@ -187,20 +193,22 @@ const Game = (() => {
 
   function updateDuelUi() {
     const d = Duel.snapshot();
+    el.duelKicker.textContent = d.ambush ? "ASURA CLASH" : "1V1 ENCOUNTER";
     el.duelName.textContent = d.enemy.name;
     el.duelSubtitle.textContent = d.enemy.subtitle;
     el.duelHealth.style.width = clamp(d.hpPct, 0, 1) * 100 + "%";
-    el.duelGuard.textContent = "♥".repeat(Math.max(0, d.guard)) + "♡".repeat(3 - Math.max(0, d.guard));
+    el.duelGuard.textContent = "♥".repeat(Math.max(0, d.guard)) + "♡".repeat(d.guardMax - Math.max(0, d.guard));
     el.duelCombo.textContent = d.combo >= 2 ? `×${d.combo} COMBO` : "";
   }
 
   function resolveDuel(outcome) {
+    const d = Duel.snapshot();
     state = "playing";
     refreshOverlays();
     if (outcome === "win") {
-      coins += 12;
+      coins += d.reward;
       Particles.burst(World.layout().w * .64, World.layout().h * .52, "rgba(255,205,90,");
-      Sound.ring(); toast("Victory! +120 score");
+      Sound.ring(); toast(`Victory! +${d.reward * 10} score`);
     } else {
       Player.setInvincible(0);
       onHit();
@@ -278,14 +286,15 @@ const Game = (() => {
         const py = World.layout().groundY - CFG.flightAlt * World.layout().h;
         Particles.flightTrail(World.laneX(Player.laneFloat, 0), py);
       }
-      Obstacles.update(dt, speed, {
+      const fightStarted = Obstacles.update(dt, speed, {
         pool: lvl.pool, obstProb: lvl.obstProb, biome: lvl.biome,
         spawn: graceZ <= 0, metres: levelDist,
       });
+      if (fightStarted) { updateHud(); return; }
       Particles.ambient(dt, lvl.biome, World.layout());
       Particles.update(dt);
       updateHud();
-      if (!duelSeen && levelDist >= CFG.duelMarks[levelIndex]) { beginDuel(); return; }
+      if (!duelSeen && levelDist >= CFG.duelMarks[levelIndex]) { beginDuel({ story: true }); return; }
       if (levelDist >= lvl.goal) completeLevel();
     } else if (state === "duel") {
       const outcome = Duel.update(dt);
@@ -386,7 +395,7 @@ const Game = (() => {
     }
   }
 
-  return { init, addCoin, addRing, activateFlight, onHit, strikeDuel, get state() { return state; } };
+  return { init, addCoin, addRing, activateFlight, onHit, strikeDuel, beginAsuraClash, get state() { return state; } };
 })();
 
 window.Game = Game;
