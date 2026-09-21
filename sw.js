@@ -1,5 +1,5 @@
 /* Offline-first service worker. Cache-first for app shell. */
-const CACHE = "hanuman-run-remaster-v2";
+const CACHE = "hanuman-run-duel-v1";
 const ASSETS = [
   "./",
   "./index.html",
@@ -20,6 +20,7 @@ const ASSETS = [
   "./js/world.js",
   "./js/player.js",
   "./js/obstacles.js",
+  "./js/duel.js",
   "./js/game.js",
 ];
 

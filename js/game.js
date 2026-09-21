@@ -4,7 +4,7 @@ const Game = (() => {
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
-  // states: menu | playing | levelclear | over | victory | paused
+  // states: menu | playing | duel | levelclear | over | victory | paused
   let state = "menu";
   let levelIndex = 0;
   let levelDist = 0;
@@ -12,7 +12,7 @@ const Game = (() => {
   let best = Store.getBest();
   let speed = CFG.baseSpeed;
   let distZ = 0, graceZ = 0, clock = 0, petalCarry = 0;
-  let last = 0;
+  let last = 0, duelSeen = false;
 
   const el = {
     hud: document.getElementById("hud"),
@@ -44,6 +44,13 @@ const Game = (() => {
     mute: document.getElementById("btn-mute"),
     flightMeter: document.getElementById("flight-meter"),
     flightFill: document.getElementById("flight-fill"),
+    duelUi: document.getElementById("duel-ui"),
+    duelName: document.getElementById("duel-name"),
+    duelSubtitle: document.getElementById("duel-subtitle"),
+    duelHealth: document.getElementById("duel-health-fill"),
+    duelGuard: document.getElementById("duel-guard"),
+    duelCombo: document.getElementById("duel-combo"),
+    strike: document.getElementById("btn-strike"),
   };
 
   // ---------- canvas ----------
@@ -63,8 +70,10 @@ const Game = (() => {
   function refreshOverlays() {
     for (const k of OVERLAYS) el[k].classList.add("hidden");
     el.hud.classList.add("hidden");
+    el.duelUi.classList.add("hidden");
     if (state === "menu") { el.bestMenu.textContent = best; el.menu.classList.remove("hidden"); }
     else if (state === "playing") el.hud.classList.remove("hidden");
+    else if (state === "duel") el.duelUi.classList.remove("hidden");
     else if (state === "paused") el.pause.classList.remove("hidden");
     else if (state === "levelclear") el.levelclear.classList.remove("hidden");
     else if (state === "over") el.over.classList.remove("hidden");
@@ -93,6 +102,7 @@ const Game = (() => {
     speed = LEVELS[i].speed;
     distZ = 0;
     graceZ = CFG.graceZ + (i === 0 ? 6 : 0); // extra breathing room on level 1
+    duelSeen = false;
     Player.reset();
     Obstacles.reset();
     Particles.reset();
@@ -154,6 +164,49 @@ const Game = (() => {
   function quitToMenu() { Sound.stopMusic(); state = "menu"; refreshOverlays(); }
   function pause() { if (state === "playing") { state = "paused"; refreshOverlays(); } }
   function resume() { if (state === "paused") { last = performance.now(); state = "playing"; refreshOverlays(); } }
+
+  // ---------- tap duel ----------
+  function beginDuel() {
+    duelSeen = true;
+    Duel.start(levelIndex);
+    state = "duel";
+    updateDuelUi();
+    refreshOverlays();
+    toast("1V1 encounter!");
+  }
+
+  function strikeDuel() {
+    if (state !== "duel") return;
+    if (Duel.strike()) {
+      Sound.strike();
+      updateDuelUi();
+      const outcome = Duel.snapshot().outcome;
+      if (outcome) resolveDuel(outcome);
+    }
+  }
+
+  function updateDuelUi() {
+    const d = Duel.snapshot();
+    el.duelName.textContent = d.enemy.name;
+    el.duelSubtitle.textContent = d.enemy.subtitle;
+    el.duelHealth.style.width = clamp(d.hpPct, 0, 1) * 100 + "%";
+    el.duelGuard.textContent = "♥".repeat(Math.max(0, d.guard)) + "♡".repeat(3 - Math.max(0, d.guard));
+    el.duelCombo.textContent = d.combo >= 2 ? `×${d.combo} COMBO` : "";
+  }
+
+  function resolveDuel(outcome) {
+    state = "playing";
+    refreshOverlays();
+    if (outcome === "win") {
+      coins += 12;
+      Particles.burst(World.layout().w * .64, World.layout().h * .52, "rgba(255,205,90,");
+      Sound.ring(); toast("Victory! +120 score");
+    } else {
+      Player.setInvincible(0);
+      onHit();
+      if (state === "playing") toast("The enemy broke your guard!");
+    }
+  }
 
   // ---------- scoring / hud ----------
   function addCoin() { coins++; Particles.sparkle(World.laneX(Player.laneFloat, 0), World.layout().groundY - World.layout().h * 0.1, "rgba(255,220,120,"); Sound.coin(); }
@@ -232,7 +285,14 @@ const Game = (() => {
       Particles.ambient(dt, lvl.biome, World.layout());
       Particles.update(dt);
       updateHud();
+      if (!duelSeen && levelDist >= CFG.duelMarks[levelIndex]) { beginDuel(); return; }
       if (levelDist >= lvl.goal) completeLevel();
+    } else if (state === "duel") {
+      const outcome = Duel.update(dt);
+      const d = Duel.snapshot();
+      if (d.hitThisFrame) Sound.enemyStrike();
+      updateDuelUi();
+      if (outcome) resolveDuel(outcome);
     } else if (state === "victory") {
       petalCarry += dt;
       while (petalCarry >= 0.12) { petalCarry -= 0.12; Particles.petal(World.layout()); }
@@ -257,6 +317,7 @@ const Game = (() => {
     const biome = state === "menu" ? "jungle" : LEVELS[levelIndex].biome;
     World.drawBackground(ctx, biome, clock);
     World.drawTrack(ctx, biome, distZ);
+    if (state === "duel") { Duel.draw(ctx, clock); return; }
     if (state === "playing" || state === "paused") Obstacles.draw(ctx);
     Player.draw(ctx);
     Particles.draw(ctx);
@@ -277,6 +338,9 @@ const Game = (() => {
         else if (a === "up") Player.jump();
         else if (a === "down") Player.slide();
         else if (a === "pause") pause();
+        break;
+      case "duel":
+        if (a === "up" || a === "start") strikeDuel();
         break;
       case "paused": if (a === "pause" || a === "start") resume(); break;
       case "levelclear": if (a === "start" || a === "up") nextLevel(); break;
@@ -301,6 +365,7 @@ const Game = (() => {
     document.getElementById("btn-play-again").addEventListener("click", startGame);
     document.getElementById("btn-victory-menu").addEventListener("click", quitToMenu);
     document.getElementById("btn-pause").addEventListener("click", pause);
+    el.strike.addEventListener("click", (e) => { e.stopPropagation(); Sound.unlock(); strikeDuel(); });
 
     el.mute.textContent = Sound.isMuted() ? "🔇" : "🔊";
     el.mute.addEventListener("click", (e) => {
@@ -321,7 +386,7 @@ const Game = (() => {
     }
   }
 
-  return { init, addCoin, addRing, activateFlight, onHit, get state() { return state; } };
+  return { init, addCoin, addRing, activateFlight, onHit, strikeDuel, get state() { return state; } };
 })();
 
 window.Game = Game;

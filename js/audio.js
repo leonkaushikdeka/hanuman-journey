@@ -82,6 +82,8 @@ const Sound = (() => {
       setTimeout(() => tone(990, 0.22, "triangle", 0.24, 1320), 90);
     },
     hit() { tone(140, 0.5, "sawtooth", 0.4, 60); },
+    strike() { tone(210, 0.09, "square", 0.2, 520); setTimeout(() => tone(680, .07, "triangle", .12, 880), 35); },
+    enemyStrike() { tone(115, .22, "sawtooth", .26, 70); },
     fly() {
       tone(220, 0.5, "sine", 0.24, 880);
       setTimeout(() => tone(440, 0.4, "triangle", 0.2, 1200), 120);

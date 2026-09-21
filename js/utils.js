@@ -32,6 +32,7 @@ const CFG = {
   flightAlt: 0.32,         // hover height (fraction of screen height, up)
   flightSpeedMul: 1.22,    // extra pace while soaring
   flightEveryM: 360,       // roughly how often a flight orb appears
+  duelMarks: [170, 270, 340, 420], // one tap duel midway through each leg
 };
 
 /* The four legs of Hanuman's journey. Each has its own biome, goal
